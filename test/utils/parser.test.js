@@ -117,5 +117,20 @@ describe('Registration Parser (FR-03 & FR-04)', () => {
       assert.equal(res.valid, false);
       assert.equal(res.reason, 'JAM_TIDAK_VALID');
     });
+
+    it('berhasil mem-parsing nama dengan gelar dan karakter khusus', () => {
+      const res = parseRegistrationText("Hj. Siti Nurhaliza, S.Kep. / RM-8821 / 06.45");
+      assert.equal(res.valid, true);
+      assert.equal(res.nama, "Hj. Siti Nurhaliza, S.Kep.");
+      assert.equal(res.noRM, 'RM-8821');
+      assert.equal(res.jamMinum, '06:45');
+    });
+
+    it('gagal menangani input null atau bukan string', () => {
+      assert.equal(parseRegistrationText(null).valid, false);
+      assert.equal(parseRegistrationText(undefined).valid, false);
+      assert.equal(parseRegistrationText('').valid, false);
+    });
   });
 });
+

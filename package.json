@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
+    "lint": "node --check src/index.js src/config.js src/db/connection.js src/db/models.js src/bot/client.js src/bot/handlers.js src/services/registration.js src/services/reminder.js src/services/adherence.js src/services/admin.js src/services/export.js src/scheduler/index.js src/utils/constants.js src/utils/logger.js src/utils/messages.js src/utils/parser.js src/utils/time.js scripts/export-excel.js",
     "test": "node --test",
     "export": "node scripts/export-excel.js"
   },
