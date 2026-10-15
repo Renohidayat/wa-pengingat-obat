@@ -33,19 +33,26 @@ export function normalizePhoneNumber(phone = '') {
 
 /**
  * Memeriksa apakah nomor pengirim terdaftar pada daftar whitelist ADMIN_NUMBERS.
+ * Mendukung format nomor telepon (@s.whatsapp.net) maupun privacy identifier Baileys (@lid).
  * @param {string} jid WhatsApp JID pengirim
  * @param {Array<string>} [adminNumbers] Daftar nomor admin
+ * @param {string} [altJid] WhatsApp JID alternatif (misal nomor telepon jika jid adalah LID)
  * @returns {boolean}
  */
-export function isAdminNumber(jid, adminNumbers) {
-  if (!jid) return false;
+export function isAdminNumber(jid, adminNumbers, altJid) {
+  if (!jid && !altJid) return false;
 
   const numbersToCheck = adminNumbers || getConfig().ADMIN_NUMBERS || [];
-  const senderPhone = normalizePhoneNumber(jid.replace('@s.whatsapp.net', ''));
+  const candidateJids = [jid, altJid].filter(Boolean);
 
   return numbersToCheck.some((adminNum) => {
     const cleanAdmin = normalizePhoneNumber(adminNum);
-    return senderPhone === cleanAdmin;
+    return candidateJids.some((c) => {
+      const cleanCandidate = normalizePhoneNumber(
+        String(c).replace(/@s\.whatsapp\.net|@lid/g, '').split(':')[0]
+      );
+      return cleanCandidate === cleanAdmin;
+    });
   });
 }
 
@@ -90,7 +97,7 @@ export async function handleAdminCommand(jid, text, options = {}) {
   const adminNumbers = options.adminNumbers;
 
   // Verifikasi otorisasi nomor admin (FR-30 s.d. FR-32)
-  const isAuthorized = isAdminNumber(jid, adminNumbers);
+  const isAuthorized = isAdminNumber(jid, adminNumbers, options.altJid);
   if (!isAuthorized) {
     logger.warn('Akses perintah admin ditolak: nomor tidak terdaftar');
     if (options.silentReject) {

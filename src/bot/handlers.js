@@ -65,8 +65,11 @@ export function extractMessageText(m) {
  * @param {object} [options={}]
  */
 export async function handleIncomingMessage({ jid, text, message }, options = {}) {
+  const altJid = message?.key?.remoteJidAlt || message?.key?.participantAlt;
+  const adminOptions = { ...options, altJid: options.altJid || altJid };
+
   // 1. Cek perintah admin peneliti (FR-30 s.d. FR-32)
-  const adminResult = await handleAdminCommand(jid, text, options);
+  const adminResult = await handleAdminCommand(jid, text, adminOptions);
   if (adminResult.handled) {
     return adminResult;
   }

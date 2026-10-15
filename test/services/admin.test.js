@@ -27,6 +27,9 @@ describe('Admin Service (FR-30 s.d. FR-32)', () => {
       assert.equal(isAdminNumber(nonAdminJid, adminNumbers), false);
       assert.equal(isAdminNumber('', adminNumbers), false);
       assert.equal(isAdminNumber(null, adminNumbers), false);
+      // Validasi dengan altJid dan @lid
+      assert.equal(isAdminNumber('123456789012345@lid', adminNumbers, adminJid), true);
+      assert.equal(isAdminNumber('123456789012345@lid', ['123456789012345']), true);
     });
   });
 
