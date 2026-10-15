@@ -18,5 +18,9 @@
     "health"
   ],
   "author": "Dea Farida",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^18.0.8",
+    "mongoose": "^9.11.2"
+  }
 }
