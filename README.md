@@ -113,6 +113,14 @@ Mengikuti panduan arsitektur pada PRD §10:
    npm start
    ```
 
+6. **Mengekspor Data Kepatuhan ke Excel**:
+   ```bash
+   npm run export
+   # atau tentukan lokasi output berkas secara kustom:
+   node scripts/export-excel.js exports/laporan-skripsi.xlsx
+   ```
+
+
 ---
 
 ## 6. Standar Pengembangan
