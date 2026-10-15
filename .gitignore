@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Baileys / WhatsApp session & auth data
+auth_info/
+auth_info*/
+*.data.json
+
+# Exported data & patient reports
+exports/
+*.xlsx
+*.csv
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime / OS files
+.DS_Store
+Thumbs.db
+
+# IDEs & Editors
+.vscode/
+.idea/
+
+# Testing & Coverage
+coverage/
