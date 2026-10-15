@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   parseTimeString,
   isRegistrationTrigger,
+  isConfirmationTrigger,
   parseRegistrationText
 } from '../../src/utils/parser.js';
 
@@ -46,6 +47,32 @@ describe('Registration Parser (FR-03 & FR-04)', () => {
       assert.equal(isRegistrationTrigger(null), false);
     });
   });
+
+  describe('isConfirmationTrigger (FR-14)', () => {
+    it('mengenali semua varian konfirmasi SUDAH, SUDAH MINUM, SDH, UDAH secara case-insensitive', () => {
+      assert.equal(isConfirmationTrigger('SUDAH'), true);
+      assert.equal(isConfirmationTrigger('sudah'), true);
+      assert.equal(isConfirmationTrigger('  Sudah  '), true);
+      assert.equal(isConfirmationTrigger('SUDAH MINUM'), true);
+      assert.equal(isConfirmationTrigger('sudah minum'), true);
+      assert.equal(isConfirmationTrigger('SDH'), true);
+      assert.equal(isConfirmationTrigger('sdh'), true);
+      assert.equal(isConfirmationTrigger('UDAH'), true);
+      assert.equal(isConfirmationTrigger('udah'), true);
+      assert.equal(isConfirmationTrigger('sudah!'), true);
+      assert.equal(isConfirmationTrigger('SUDAH.'), true);
+    });
+
+    it('menolak pesan yang bukan varian konfirmasi', () => {
+      assert.equal(isConfirmationTrigger('BELUM'), false);
+      assert.equal(isConfirmationTrigger('DAFTAR'), false);
+      assert.equal(isConfirmationTrigger('SUDAH MAKAN'), false);
+      assert.equal(isConfirmationTrigger('SAYA SUDAH MINUM OBAT'), false);
+      assert.equal(isConfirmationTrigger(''), false);
+      assert.equal(isConfirmationTrigger(null), false);
+    });
+  });
+
 
   describe('parseRegistrationText', () => {
     it('berhasil mem-parsing format Nama / No. RM / Jam yang valid', () => {

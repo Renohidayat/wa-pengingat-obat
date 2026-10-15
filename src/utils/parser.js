@@ -39,6 +39,29 @@ export function isRegistrationTrigger(text) {
   return text.trim().toUpperCase() === 'DAFTAR';
 }
 
+export const CONFIRMATION_VARIANTS = Object.freeze([
+  'SUDAH',
+  'SUDAH MINUM',
+  'SDH',
+  'UDAH'
+]);
+
+/**
+ * Mengecek apakah pesan merupakan konfirmasi minum obat (FR-14: SUDAH, SUDAH MINUM, SDH, UDAH).
+ * Case-insensitive dan toleran terhadap spasi / tanda baca akhir (. atau !).
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function isConfirmationTrigger(text) {
+  if (typeof text !== 'string') {
+    return false;
+  }
+
+  const cleaned = text.trim().toUpperCase().replace(/[.!]+$/, '').trim();
+  return CONFIRMATION_VARIANTS.includes(cleaned);
+}
+
+
 /**
  * Mengurai pesan data registrasi dengan format: "Nama / No. RM / Jam Minum Obat" (FR-04).
  * Pemisah garis miring (/), jam menerima format 07.00, 7.00, 07:00.
