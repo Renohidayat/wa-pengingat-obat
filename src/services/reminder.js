@@ -7,7 +7,7 @@
 import { Patient, ReminderLog } from '../db/models.js';
 import { PATIENT_STATE, REMINDER_STATUS } from '../utils/constants.js';
 import { formatDateWib, calculateMinuteDiff } from '../utils/time.js';
-import { getReminder1Message } from '../utils/messages.js';
+import { getReminder1Message, getReminder2Message } from '../utils/messages.js';
 import { send } from '../bot/client.js';
 import { logger } from '../utils/logger.js';
 
@@ -175,6 +175,132 @@ export async function checkAndSendDailyReminders(now = new Date(), options = {})
     } catch (error) {
       logger.error({ err: error.message }, 'Gagal memproses pengingat harian pasien');
       results.push({ patientId: patient._id, success: false, error: error.message });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Fungsi murni untuk mengevaluasi kelayakan pengiriman pengingat ke-2 pasien (FR-17).
+ * Syarat:
+ * 1. Log berstatus Menunggu
+ * 2. reminder2At masih null (belum pernah dikirim)
+ * 3. reminder1At ada dan selisih waktu >= 30 menit
+ * 4. Pasien masih berstatus ACTIVE
+ * @param {{
+ *   log: { status: string, reminder1At?: Date, reminder2At?: Date },
+ *   patient: { state: string },
+ *   now?: Date
+ * }} params
+ * @returns {{
+ *   eligible: boolean,
+ *   action?: 'SEND_REMINDER_2',
+ *   reason?: string,
+ *   elapsedMinutes?: number
+ * }}
+ */
+export function evaluateReminder2Eligibility({ log, patient, now = new Date() }) {
+  if (!log) {
+    return { eligible: false, reason: 'NO_LOG' };
+  }
+
+  // Hanya kirim jika status masih Menunggu (FR-17)
+  if (log.status !== REMINDER_STATUS.MENUNGGU) {
+    return { eligible: false, reason: 'STATUS_NOT_MENUNGGU', currentStatus: log.status };
+  }
+
+  // Sekali per hari per pasien (idempoten)
+  if (log.reminder2At) {
+    return { eligible: false, reason: 'REMINDER_2_ALREADY_SENT' };
+  }
+
+  if (!log.reminder1At) {
+    return { eligible: false, reason: 'NO_REMINDER_1' };
+  }
+
+  if (!patient || patient.state !== PATIENT_STATE.ACTIVE) {
+    return { eligible: false, reason: 'PATIENT_NOT_ACTIVE' };
+  }
+
+  const elapsedMs = now.getTime() - new Date(log.reminder1At).getTime();
+  const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
+
+  // Belum mencapai 30 menit
+  if (elapsedMinutes < 30) {
+    return { eligible: false, reason: 'TIME_NOT_ARRIVED', elapsedMinutes };
+  }
+
+  return {
+    eligible: true,
+    action: 'SEND_REMINDER_2',
+    elapsedMinutes
+  };
+}
+
+/**
+ * Memproses pengiriman pengingat ke-2 untuk satu dokumen ReminderLog.
+ * @param {any} log Dokumen ReminderLog
+ * @param {any} patient Dokumen Patient terkait
+ * @param {Date} [now=new Date()]
+ * @param {object} [options={}]
+ * @returns {Promise<{ handled: boolean, action?: string, reason?: string, logId?: any }>}
+ */
+export async function processReminder2ForLog(log, patient, now = new Date(), options = {}) {
+  const sendFn = options.sendFn || send;
+  const evaluation = evaluateReminder2Eligibility({ log, patient, now });
+
+  if (!evaluation.eligible) {
+    return { handled: false, reason: evaluation.reason };
+  }
+
+  try {
+    // Simpan reminder2At terlebih dahulu untuk mencegah duplikasi (idempoten)
+    log.reminder2At = now;
+    await log.save();
+
+    logger.info(
+      { patientId: patient._id, logId: log._id },
+      'Mengirimkan pengingat ke-2 (setelah 30 menit) ke pasien'
+    );
+
+    // Teks pesan tanpa placeholder [Nama Obat] (FR-17 & PRD §8)
+    const text = getReminder2Message(patient.nama, now);
+    await sendFn(patient.jid, text);
+
+    return { handled: true, action: 'sent_reminder_2', logId: log._id };
+  } catch (error) {
+    logger.error({ err: error.message, logId: log._id }, 'Gagal mengirim pengingat ke-2');
+    throw error;
+  }
+}
+
+/**
+ * Mengecek dan memproses pengingat ke-2 (30 menit setelah pengingat 1) untuk log yang masih Menunggu.
+ * @param {Date} [now=new Date()]
+ * @param {object} [options={}]
+ * @returns {Promise<Array<any>>}
+ */
+export async function checkAndSendReminder2(now = new Date(), options = {}) {
+  const todayStr = formatDateWib(now);
+
+  // Ambil log hari ini yang masih Menunggu dan belum dikirim pengingat 2
+  const pendingLogs = await ReminderLog.find({
+    tanggal: todayStr,
+    status: REMINDER_STATUS.MENUNGGU,
+    reminder2At: null
+  }).populate('patientId');
+
+  const results = [];
+
+  for (const log of pendingLogs) {
+    const patient = log.patientId;
+    try {
+      const res = await processReminder2ForLog(log, patient, now, options);
+      results.push({ logId: log._id, success: true, ...res });
+    } catch (error) {
+      logger.error({ err: error.message, logId: log._id }, 'Gagal memproses pengingat ke-2 pasien');
+      results.push({ logId: log._id, success: false, error: error.message });
     }
   }
 

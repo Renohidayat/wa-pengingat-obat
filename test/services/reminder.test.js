@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import {
   evaluateReminder1Eligibility,
   processReminder1ForPatient,
-  checkAndSendDailyReminders
+  checkAndSendDailyReminders,
+  evaluateReminder2Eligibility,
+  processReminder2ForLog,
+  checkAndSendReminder2
 } from '../../src/services/reminder.js';
 import { Patient, ReminderLog } from '../../src/db/models.js';
 import { PATIENT_STATE, REMINDER_STATUS } from '../../src/utils/constants.js';
@@ -285,4 +288,166 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
       }
     });
   });
+
+  describe('Reminder 2 Service (FR-17: Setelah 30 Menit)', () => {
+    describe('evaluateReminder2Eligibility (Fungsi Murni)', () => {
+      const activePatient = { state: PATIENT_STATE.ACTIVE };
+      const reminder1Time = new Date('2026-10-15T00:00:00Z'); // 07:00 WIB
+
+      it('menolak jika status log bukan Menunggu (misal sudah Tepat Waktu)', () => {
+        const res = evaluateReminder2Eligibility({
+          log: { status: REMINDER_STATUS.TEPAT_WAKTU, reminder1At: reminder1Time },
+          patient: activePatient,
+          now: new Date('2026-10-15T00:35:00Z')
+        });
+        assert.equal(res.eligible, false);
+        assert.equal(res.reason, 'STATUS_NOT_MENUNGGU');
+      });
+
+      it('menolak jika pengingat 2 sudah pernah dikirim (reminder2At ada / idempoten)', () => {
+        const res = evaluateReminder2Eligibility({
+          log: {
+            status: REMINDER_STATUS.MENUNGGU,
+            reminder1At: reminder1Time,
+            reminder2At: new Date('2026-10-15T00:30:00Z')
+          },
+          patient: activePatient,
+          now: new Date('2026-10-15T00:35:00Z')
+        });
+        assert.equal(res.eligible, false);
+        assert.equal(res.reason, 'REMINDER_2_ALREADY_SENT');
+      });
+
+      it('menolak jika belum mencapai 30 menit dari pengingat 1', () => {
+        // 25 menit setelah pengingat 1 (07:25 WIB)
+        const now25m = new Date('2026-10-15T00:25:00Z');
+        const res = evaluateReminder2Eligibility({
+          log: { status: REMINDER_STATUS.MENUNGGU, reminder1At: reminder1Time },
+          patient: activePatient,
+          now: now25m
+        });
+        assert.equal(res.eligible, false);
+        assert.equal(res.reason, 'TIME_NOT_ARRIVED');
+        assert.equal(res.elapsedMinutes, 25);
+      });
+
+      it('menolak jika pasien tidak aktif', () => {
+        const now30m = new Date('2026-10-15T00:30:00Z');
+        const res = evaluateReminder2Eligibility({
+          log: { status: REMINDER_STATUS.MENUNGGU, reminder1At: reminder1Time },
+          patient: { state: PATIENT_STATE.STOPPED },
+          now: now30m
+        });
+        assert.equal(res.eligible, false);
+        assert.equal(res.reason, 'PATIENT_NOT_ACTIVE');
+      });
+
+      it('menyetujui pengiriman pengingat 2 jika sudah >= 30 menit dan masih Menunggu', () => {
+        // Tepat 30 menit setelah pengingat 1 (07:30 WIB)
+        const now30m = new Date('2026-10-15T00:30:00Z');
+        const res = evaluateReminder2Eligibility({
+          log: { status: REMINDER_STATUS.MENUNGGU, reminder1At: reminder1Time },
+          patient: activePatient,
+          now: now30m
+        });
+        assert.equal(res.eligible, true);
+        assert.equal(res.action, 'SEND_REMINDER_2');
+        assert.equal(res.elapsedMinutes, 30);
+      });
+    });
+
+    describe('processReminder2ForLog & checkAndSendReminder2', () => {
+      it('menyimpan reminder2At dan mengirim naskah pengingat 2 tanpa placeholder [Nama Obat]', async () => {
+        const patient = {
+          _id: 'p1',
+          jid: '6281@s.whatsapp.net',
+          nama: 'Sukanti',
+          state: PATIENT_STATE.ACTIVE
+        };
+
+        const now = new Date('2026-10-15T00:35:00Z');
+        let saveCalled = false;
+        const mockLog = {
+          _id: 'log-1',
+          status: REMINDER_STATUS.MENUNGGU,
+          reminder1At: new Date('2026-10-15T00:00:00Z'),
+          reminder2At: null,
+          save: async () => {
+            saveCalled = true;
+          }
+        };
+
+        const sent = [];
+        const res = await processReminder2ForLog(mockLog, patient, now, {
+          sendFn: async (jid, text) => sent.push({ jid, text })
+        });
+
+        assert.equal(res.handled, true);
+        assert.equal(res.action, 'sent_reminder_2');
+        assert.equal(saveCalled, true);
+        assert.equal(mockLog.reminder2At, now);
+        assert.equal(sent.length, 1);
+        assert.match(sent[0].text, /Kami mengingatkan kembali/);
+        assert.match(sent[0].text, /obat Bapak\/Ibu/);
+        assert.doesNotMatch(sent[0].text, /\[Nama Obat\]/);
+      });
+
+      it('checkAndSendReminder2 memproses log yang menunggu dan mengisolasi error', async () => {
+        const origFind = ReminderLog.find;
+
+        const mockLogs = [
+          {
+            _id: 'log-1',
+            status: REMINDER_STATUS.MENUNGGU,
+            reminder1At: new Date('2026-10-15T00:00:00Z'),
+            reminder2At: null,
+            patientId: {
+              _id: 'p1',
+              jid: '6281@s.whatsapp.net',
+              nama: 'Sukanti',
+              state: PATIENT_STATE.ACTIVE
+            },
+            save: async () => {}
+          },
+          {
+            _id: 'log-2',
+            status: REMINDER_STATUS.MENUNGGU,
+            reminder1At: new Date('2026-10-15T00:00:00Z'),
+            reminder2At: null,
+            patientId: {
+              _id: 'p2',
+              jid: '6282@s.whatsapp.net',
+              nama: 'Budi Gagal',
+              state: PATIENT_STATE.ACTIVE
+            },
+            save: async () => {
+              throw new Error('Save error');
+            }
+          }
+        ];
+
+        ReminderLog.find = () => ({
+          populate: async () => mockLogs
+        });
+
+        try {
+          const now = new Date('2026-10-15T00:35:00Z');
+          const sent = [];
+          const results = await checkAndSendReminder2(now, {
+            sendFn: async (jid, text) => sent.push({ jid, text })
+          });
+
+          assert.equal(results.length, 2);
+          assert.equal(results[0].success, true);
+          assert.equal(results[0].action, 'sent_reminder_2');
+          assert.equal(results[1].success, false);
+          assert.match(results[1].error, /Save error/);
+          assert.equal(sent.length, 1);
+        } finally {
+          ReminderLog.find = origFind;
+        }
+      });
+    });
+  });
 });
+
