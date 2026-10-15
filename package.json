@@ -20,7 +20,10 @@
   "author": "Dea Farida",
   "license": "ISC",
   "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc14",
     "dotenv": "^18.0.8",
-    "mongoose": "^9.11.2"
+    "mongoose": "^9.11.2",
+    "pino": "^10.4.0",
+    "qrcode-terminal": "^0.12.0"
   }
 }
