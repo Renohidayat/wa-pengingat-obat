@@ -62,6 +62,23 @@ export function formatTimeWib(now = new Date()) {
 }
 
 /**
+ * Format tanggal dan jam dalam zona waktu WIB (Asia/Jakarta) dengan format YYYY-MM-DD HH:mm:ss.
+ * @param {Date} [now=new Date()]
+ * @returns {string} Contoh: '2026-10-15 07:00:00', atau '-' jika null/undefined
+ */
+export function formatDateTimeWib(now) {
+  if (!now) return '-';
+  const { year, month, day, hour, minute, second } = getWibParts(new Date(now));
+  const mm = String(month).padStart(2, '0');
+  const dd = String(day).padStart(2, '0');
+  const hh = String(hour).padStart(2, '0');
+  const min = String(minute).padStart(2, '0');
+  const ss = String(second).padStart(2, '0');
+  return `${year}-${mm}-${dd} ${hh}:${min}:${ss}`;
+}
+
+
+/**
  * Mendapatkan salam dinamis berdasarkan jam di zona waktu WIB (PRD §8):
  * - Pagi (< 11)
  * - Siang (11–14)
