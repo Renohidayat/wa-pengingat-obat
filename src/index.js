@@ -98,11 +98,18 @@ export async function bootstrap(options = {}) {
   logger.info('Menghubungkan ke database MongoDB...');
   await connectDbFn(config.MONGODB_URI);
 
-  // 2. Buat koneksi Baileys WhatsApp
-  const sock = options.sock || (await createBotFn({ authDir: config.AUTH_DIR }));
+  // 2. Buat koneksi Baileys WhatsApp dengan auto-attach handler saat inisialisasi & reconnect
+  const sock = options.sock || (await createBotFn({
+    authDir: config.AUTH_DIR,
+    onSocketCreated: (newSock) => {
+      setupMessageHandlersFn(newSock);
+    }
+  }));
 
-  // 3. Daftarkan event listener pesan masuk
-  setupMessageHandlersFn(sock);
+  // 3. Daftarkan event listener jika sock di-inject secara manual (misal testing)
+  if (options.sock) {
+    setupMessageHandlersFn(options.sock);
+  }
 
   // 4. Jalankan cron scheduler harian (Asia/Jakarta)
   const schedulerTask = startSchedulerFn(options);
