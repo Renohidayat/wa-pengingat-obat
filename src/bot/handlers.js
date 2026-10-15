@@ -3,6 +3,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { handleRegistrationMessage } from '../services/registration.js';
 
 /**
  * Mengecek apakah pesan harus diabaikan sesuai FR-02:
@@ -57,12 +58,24 @@ export function extractMessageText(m) {
 }
 
 /**
+ * Dispatcher pesan masuk utama untuk memproses registrasi, konfirmasi, atau perintah admin.
+ * @param {{ jid: string, text: string, message: object }} payload
+ */
+export async function handleIncomingMessage({ jid, text, message }) {
+  // 1. Cek alur registrasi pasien (FR-03 s.d. FR-07)
+  const regResult = await handleRegistrationMessage(jid, text);
+  if (regResult.handled) {
+    return;
+  }
+}
+
+/**
  * Mendaftarkan listener pesan masuk pada socket Baileys.
  * Menerapkan isolasi error per pesan (try/catch) agar kegagalan satu pesan tidak mengganggu pesan lain.
  * @param {any} sock Instance socket Baileys
- * @param {(payload: { jid: string, text: string, message: object }) => Promise<void>} handler
+ * @param {(payload: { jid: string, text: string, message: object }) => Promise<void>} [handler=handleIncomingMessage]
  */
-export function setupMessageHandlers(sock, handler) {
+export function setupMessageHandlers(sock, handler = handleIncomingMessage) {
   sock.ev.on('messages.upsert', async (upsert) => {
     // Hanya proses pesan notifikasi baru
     if (upsert.type !== 'notify' || !Array.isArray(upsert.messages)) {
@@ -93,3 +106,4 @@ export function setupMessageHandlers(sock, handler) {
     }
   });
 }
+
