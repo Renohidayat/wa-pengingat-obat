@@ -83,3 +83,29 @@ export function getGreeting(now = new Date()) {
   }
   return 'Malam';
 }
+
+/**
+ * Mengonversi string jam HH:mm ke jumlah menit sejak tengah malam (00:00).
+ * @param {string} timeStr Format HH:mm
+ * @returns {number}
+ */
+export function timeStringToMinutes(timeStr) {
+  const [hh, mm] = timeStr.split(':').map((v) => parseInt(v, 10));
+  return hh * 60 + mm;
+}
+
+/**
+ * Menghitung selisih menit antara waktu sekarang (WIB) dengan waktu jadwal minum obat pada hari yang sama.
+ * Nilai positif: waktu sekarang telah melewati jadwal (terlambat/catch-up).
+ * Nilai negatif: waktu sekarang belum mencapai jadwal.
+ * @param {string} scheduledTimeStr Format HH:mm (contoh '07:00')
+ * @param {Date} [now=new Date()]
+ * @returns {number} Selisih dalam menit
+ */
+export function calculateMinuteDiff(scheduledTimeStr, now = new Date()) {
+  const { hour, minute } = getWibParts(now);
+  const currentMinutes = hour * 60 + minute;
+  const schedMinutes = timeStringToMinutes(scheduledTimeStr);
+  return currentMinutes - schedMinutes;
+}
+
