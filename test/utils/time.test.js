@@ -76,7 +76,22 @@ describe('Time Utilities (Asia/Jakarta WIB)', () => {
     const now7Wib = new Date('2026-10-15T00:00:00Z');
     assert.equal(calculateMinuteDiff('07:00', now7Wib), 0);
     assert.equal(calculateMinuteDiff('06:30', now7Wib), 30); // 30 menit lewat jadwal
+    assert.equal(calculateMinuteDiff('06:00', now7Wib), 60); // tepat 60 menit batas catch-up
+    assert.equal(calculateMinuteDiff('05:59', now7Wib), 61); // lewat 61 menit (terlewat sistem)
     assert.equal(calculateMinuteDiff('08:00', now7Wib), -60); // 60 menit sebelum jadwal
   });
+
+  it('menguji pergantian hari UTC dan WIB secara tepat di tengah malam', () => {
+    // 16:59:59 UTC = 23:59:59 WIB pada 15 Okt 2026
+    const lateUtc = new Date('2026-10-15T16:59:59Z');
+    assert.equal(formatDateWib(lateUtc), '2026-10-15');
+    assert.equal(formatTimeWib(lateUtc), '23:59');
+
+    // 17:00:00 UTC = 00:00:00 WIB pada 16 Okt 2026
+    const midnightUtc = new Date('2026-10-15T17:00:00Z');
+    assert.equal(formatDateWib(midnightUtc), '2026-10-16');
+    assert.equal(formatTimeWib(midnightUtc), '00:00');
+  });
 });
+
 
