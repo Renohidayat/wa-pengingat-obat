@@ -191,3 +191,114 @@ export function getPatientStoppedMessage(nama = '') {
 ${MESSAGE_FOOTER}`;
 }
 
+/**
+ * Pesan penolakan perintah admin untuk pengirim non-admin (FR-30 s.d. FR-32).
+ * @returns {string}
+ */
+export function getAdminUnauthorizedMessage() {
+  return `Mohon maaf, perintah ini hanya dapat diakses oleh peneliti/admin penelitian.
+
+${MESSAGE_FOOTER}`;
+}
+
+/**
+ * Pesan ringkasan kepatuhan hari ini untuk admin (FR-30).
+ * @param {{
+ *   tanggal: string,
+ *   total: number,
+ *   tepatWaktu: number,
+ *   terlambat: number,
+ *   menunggu: number,
+ *   tidakKonfirmasi: number,
+ *   terlewatSistem: number
+ * }} stats
+ * @returns {string}
+ */
+export function getAdminRekapMessage({
+  tanggal,
+  total,
+  tepatWaktu,
+  terlambat,
+  menunggu,
+  tidakKonfirmasi,
+  terlewatSistem
+}) {
+  return `*Rekap Kepatuhan Hari Ini*
+Tanggal: ${tanggal} WIB
+
+- Tepat Waktu: ${tepatWaktu}
+- Terlambat: ${terlambat}
+- Menunggu: ${menunggu}
+- Tidak Konfirmasi: ${tidakKonfirmasi}
+- Terlewat Sistem: ${terlewatSistem}
+Total Jadwal: ${total}
+
+${MESSAGE_FOOTER}`;
+}
+
+/**
+ * Pesan daftar pasien aktif untuk admin (FR-31).
+ * @param {Array<{ nama: string, noRM: string, jamMinum: string }>} patients
+ * @returns {string}
+ */
+export function getAdminPasienMessage(patients = []) {
+  if (patients.length === 0) {
+    return `*Daftar Pasien Aktif*
+
+Saat ini belum ada pasien yang berstatus aktif.
+
+${MESSAGE_FOOTER}`;
+  }
+
+  const listText = patients
+    .map(
+      (p, i) => `${i + 1}. ${p.nama} (RM: ${p.noRM}) - ${p.jamMinum} WIB`
+    )
+    .join('\n');
+
+  return `*Daftar Pasien Aktif*
+Total: ${patients.length} pasien
+
+${listText}
+
+${MESSAGE_FOOTER}`;
+}
+
+/**
+ * Pesan berhasil menghentikan pengingat pasien (FR-32).
+ * @param {{ nama: string, noRM: string }} patient
+ * @returns {string}
+ */
+export function getAdminStopSuccessMessage(patient) {
+  return `Pengingat minum obat untuk pasien *${patient.nama}* (No. RM: ${patient.noRM}) telah berhasil dihentikan (status: stopped).
+
+${MESSAGE_FOOTER}`;
+}
+
+/**
+ * Pesan jika No. RM tidak ditemukan saat perintah !stop dijalankan.
+ * @param {string} noRM
+ * @returns {string}
+ */
+export function getAdminStopNotFoundMessage(noRM) {
+  return `Pasien dengan No. Rekam Medis (RM) *${noRM}* tidak ditemukan.
+
+${MESSAGE_FOOTER}`;
+}
+
+/**
+ * Pesan bantuan panduan perintah admin.
+ * @returns {string}
+ */
+export function getAdminHelpMessage() {
+  return `*Panduan Perintah Admin Peneliti:*
+- *!rekap* : Ringkasan status kepatuhan hari ini
+- *!pasien* : Daftar seluruh pasien aktif beserta jam minum
+- *!stop <RM>* : Menghentikan pengingat minum obat pasien
+
+Contoh: !stop 123456
+
+${MESSAGE_FOOTER}`;
+}
+
+

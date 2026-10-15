@@ -1,6 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { shouldIgnoreMessage, extractMessageText, setupMessageHandlers } from '../../src/bot/handlers.js';
+import {
+  shouldIgnoreMessage,
+  extractMessageText,
+  setupMessageHandlers,
+  handleIncomingMessage
+} from '../../src/bot/handlers.js';
 
 describe('WhatsApp Message Filters & Handlers (FR-02)', () => {
   it('mengabaikan pesan dari bot sendiri (fromMe: true)', () => {
@@ -126,4 +131,23 @@ describe('WhatsApp Message Filters & Handlers (FR-02)', () => {
     assert.equal(received[1].text, 'ERROR');
     assert.equal(received[2].text, 'Pesan 3');
   });
+
+  it('handleIncomingMessage mendispatch perintah admin berawalan tanda seru', async () => {
+    const sent = [];
+    const res = await handleIncomingMessage(
+      {
+        jid: '628123456789@s.whatsapp.net',
+        text: '!help'
+      },
+      {
+        adminNumbers: ['628123456789'],
+        sendFn: async (jid, text) => sent.push({ jid, text })
+      }
+    );
+
+    assert.equal(res.handled, true);
+    assert.equal(res.action, 'help');
+    assert.equal(sent.length, 1);
+  });
 });
+
