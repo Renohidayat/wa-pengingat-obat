@@ -40,6 +40,7 @@ Mengikuti panduan arsitektur pada PRD §10:
 │       └── ci.yml
 ├── docs/
 │   ├── DEPLOY.md
+│   ├── ONBOARDING.md
 │   └── PRD.md
 ├── scripts/
 │   ├── export-excel.js
