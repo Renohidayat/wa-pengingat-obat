@@ -1,0 +1,22 @@
+{
+  "name": "wa-pengingat-obat",
+  "version": "1.0.0",
+  "description": "Bot WhatsApp Pengingat Minum Obat untuk Penelitian Kepatuhan Pasien",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "whatsapp",
+    "baileys",
+    "medication-reminder",
+    "health"
+  ],
+  "author": "Dea Farida",
+  "license": "ISC"
+}
