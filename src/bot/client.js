@@ -127,3 +127,20 @@ export function getSocket() {
 export function setSocket(newSock) {
   sock = newSock;
 }
+
+/**
+ * Menutup koneksi socket WhatsApp secara rapi (graceful shutdown).
+ */
+export async function disconnectWhatsApp() {
+  if (sock) {
+    try {
+      logger.info('Menutup koneksi socket WhatsApp...');
+      sock.end(undefined);
+    } catch (err) {
+      logger.error({ err: err.message }, 'Error saat menutup koneksi socket WhatsApp');
+    } finally {
+      sock = null;
+    }
+  }
+}
+

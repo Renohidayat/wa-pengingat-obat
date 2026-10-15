@@ -92,7 +92,7 @@ export async function handleAdminCommand(jid, text, options = {}) {
   // Verifikasi otorisasi nomor admin (FR-30 s.d. FR-32)
   const isAuthorized = isAdminNumber(jid, adminNumbers);
   if (!isAuthorized) {
-    logger.warn({ jid }, 'Akses perintah admin ditolak: nomor tidak terdaftar');
+    logger.warn('Akses perintah admin ditolak: nomor tidak terdaftar');
     if (options.silentReject) {
       return { handled: true, action: 'unauthorized_silent' };
     }
@@ -161,7 +161,7 @@ export async function handleAdminCommand(jid, text, options = {}) {
       await patient.save();
 
       logger.info(
-        { patientId: patient._id, noRM: patient.noRM },
+        { patientId: patient._id },
         'Pengingat pasien berhasil dihentikan oleh admin'
       );
 

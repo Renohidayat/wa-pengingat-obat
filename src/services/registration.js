@@ -37,7 +37,7 @@ export async function handleRegistrationMessage(jid, text, options = {}) {
         state: PATIENT_STATE.AWAITING_DATA
       });
       await patient.save();
-      logger.info({ jid }, 'Pasien baru memulai registrasi');
+      logger.info({ patientId: patient._id }, 'Pasien baru memulai registrasi');
     } else if (patient.state === PATIENT_STATE.ACTIVE) {
       await sendFn(jid, getAlreadyRegisteredMessage(patient.nama, patient.jamMinum));
       return { handled: true, action: 'already_active' };
@@ -59,7 +59,7 @@ export async function handleRegistrationMessage(jid, text, options = {}) {
 
     // Format tidak valid -> kirim contoh format, state TETAP awaiting_data (FR-05)
     if (!parsed.valid) {
-      logger.info({ jid, reason: parsed.reason }, 'Format registrasi tidak valid');
+      logger.info({ patientId: patient._id, reason: parsed.reason }, 'Format registrasi tidak valid');
       await sendFn(jid, getInvalidFormatMessage());
       return { handled: true, action: 'invalid_format' };
     }
@@ -71,7 +71,7 @@ export async function handleRegistrationMessage(jid, text, options = {}) {
     });
 
     if (duplicateRm) {
-      logger.warn({ jid }, 'No. RM duplikat terdeteksi');
+      logger.warn({ patientId: patient._id }, 'No. RM duplikat terdeteksi');
       await sendFn(jid, getDuplicateRmMessage(parsed.noRM));
       return { handled: true, action: 'duplicate_rm' };
     }
@@ -85,7 +85,7 @@ export async function handleRegistrationMessage(jid, text, options = {}) {
 
     await patient.save();
 
-    logger.info({ jid }, 'Pasien berhasil terdaftar');
+    logger.info({ patientId: patient._id }, 'Pasien berhasil terdaftar');
     await sendFn(jid, getRegistrationSuccessMessage(patient.nama, patient.jamMinum));
     return { handled: true, action: 'registration_success' };
   }
