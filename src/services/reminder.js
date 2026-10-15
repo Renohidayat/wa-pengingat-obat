@@ -6,7 +6,7 @@
 
 import { Patient, ReminderLog } from '../db/models.js';
 import { PATIENT_STATE, REMINDER_STATUS } from '../utils/constants.js';
-import { formatDateWib, calculateMinuteDiff } from '../utils/time.js';
+import { formatDateWib, formatTimeWib, calculateMinuteDiff } from '../utils/time.js';
 import { getReminder1Message, getReminder2Message } from '../utils/messages.js';
 import { send } from '../bot/client.js';
 import { logger } from '../utils/logger.js';
@@ -306,3 +306,129 @@ export async function checkAndSendReminder2(now = new Date(), options = {}) {
 
   return results;
 }
+
+/**
+ * Fungsi murni untuk mengevaluasi kelayakan log difinalisasi menjadi Tidak Konfirmasi (FR-18).
+ * Syarat:
+ * 1. Log harus berstatus Menunggu (REMINDER_STATUS.MENUNGGU).
+ * 2. Log milik hari kemarin/sebelumnya (catch-up), ATAU milik hari ini dan waktu sudah mencapai >= 23:59 WIB / opsi force.
+ * @param {{
+ *   log: { status: string, tanggal: string },
+ *   now?: Date,
+ *   options?: { force?: boolean }
+ * }} params
+ * @returns {{
+ *   eligible: boolean,
+ *   action?: 'FINALIZE_UNCONFIRMED',
+ *   reason?: string,
+ *   currentTime?: string
+ * }}
+ */
+export function evaluateFinalizationEligibility({ log, now = new Date(), options = {} }) {
+  if (!log) {
+    return { eligible: false, reason: 'NO_LOG' };
+  }
+
+  // Hanya memfinalisasi log yang statusnya masih Menunggu
+  if (log.status !== REMINDER_STATUS.MENUNGGU) {
+    return { eligible: false, reason: 'STATUS_NOT_MENUNGGU', currentStatus: log.status };
+  }
+
+  const todayStr = formatDateWib(now);
+  const currentTime = formatTimeWib(now);
+
+  // Jika log dari hari-hari sebelumnya yang tertinggal (catch-up)
+  if (log.tanggal < todayStr) {
+    return {
+      eligible: true,
+      action: 'FINALIZE_UNCONFIRMED',
+      reason: 'PAST_DAY_UNCONFIRMED'
+    };
+  }
+
+  // Jika log dari hari ini, harus sudah mencapai 23:59 WIB atau dipaksa
+  if (log.tanggal === todayStr) {
+    if (currentTime >= '23:59' || options.force) {
+      return {
+        eligible: true,
+        action: 'FINALIZE_UNCONFIRMED',
+        reason: 'END_OF_DAY_REACHED'
+      };
+    }
+    return {
+      eligible: false,
+      reason: 'TIME_NOT_ARRIVED',
+      currentTime
+    };
+  }
+
+  return { eligible: false, reason: 'FUTURE_DATE' };
+}
+
+/**
+ * Memfinalisasi log pengingat yang masih Menunggu menjadi Tidak Konfirmasi (FR-18).
+ * Menjalankan pembaruan secara idempoten dan aman dijalankan berulang kali.
+ * @param {Date} [now=new Date()]
+ * @param {object} [options={}]
+ * @returns {Promise<{ targetDate: string, modifiedCount: number, logIds: Array<any> }>}
+ */
+export async function finalizeDailyUnconfirmedLogs(now = new Date(), options = {}) {
+  const todayStr = formatDateWib(now);
+  const currentTime = formatTimeWib(now);
+  const force = options.force ?? false;
+  const targetDate = options.date;
+
+  let query = { status: REMINDER_STATUS.MENUNGGU };
+
+  if (targetDate) {
+    query.tanggal = targetDate;
+  } else if (currentTime >= '23:59' || force) {
+    // Pada akhir hari (23:59 WIB) atau force, proses log hari ini dan sebelumnya
+    query.tanggal = { $lte: todayStr };
+  } else {
+    // Di luar 23:59, hanya proses log hari-hari sebelumnya yang belum difinalisasi
+    query.tanggal = { $lt: todayStr };
+  }
+
+  const pendingLogs = await ReminderLog.find(query);
+  const updatedLogIds = [];
+
+  for (const log of pendingLogs) {
+    const evaluation = evaluateFinalizationEligibility({
+      log,
+      now,
+      options: { force: force || Boolean(targetDate) }
+    });
+
+    if (evaluation.eligible) {
+      try {
+        log.status = REMINDER_STATUS.TIDAK_KONFIRMASI;
+        await log.save();
+        updatedLogIds.push(log._id);
+        logger.info(
+          { logId: log._id, patientId: log.patientId, tanggal: log.tanggal },
+          'Log pengingat difinalisasi menjadi Tidak Konfirmasi'
+        );
+      } catch (err) {
+        logger.error(
+          { err: err.message, logId: log._id },
+          'Gagal memfinalisasi log pengingat ke Tidak Konfirmasi'
+        );
+      }
+    }
+  }
+
+  if (updatedLogIds.length > 0) {
+    logger.info(
+      { count: updatedLogIds.length, todayStr, currentTime },
+      'Finalisasi harian status Tidak Konfirmasi berhasil diperbarui'
+    );
+  }
+
+  return {
+    targetDate: targetDate || todayStr,
+    modifiedCount: updatedLogIds.length,
+    logIds: updatedLogIds
+  };
+}
+
