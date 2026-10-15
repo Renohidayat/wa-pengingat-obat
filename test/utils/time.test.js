@@ -4,6 +4,7 @@ import {
   getGreeting,
   formatDateWib,
   formatTimeWib,
+  formatDateTimeWib,
   getWibParts,
   timeStringToMinutes,
   calculateMinuteDiff
@@ -43,6 +44,13 @@ describe('Time Utilities (Asia/Jakarta WIB)', () => {
   it('memformat jam dalam format HH:mm WIB', () => {
     const dateUtc = new Date('2026-10-15T00:30:00Z'); // 07:30 WIB
     assert.equal(formatTimeWib(dateUtc), '07:30');
+  });
+
+  it('memformat tanggal dan jam dalam format YYYY-MM-DD HH:mm:ss WIB', () => {
+    const dateUtc = new Date('2026-10-15T00:30:45Z'); // 07:30:45 WIB
+    assert.equal(formatDateTimeWib(dateUtc), '2026-10-15 07:30:45');
+    assert.equal(formatDateTimeWib(null), '-');
+    assert.equal(formatDateTimeWib(undefined), '-');
   });
 
   it('menguraikan bagian waktu WIB secara akurat', () => {

@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "export": "node scripts/export-excel.js"
   },
   "keywords": [
     "whatsapp",
@@ -22,6 +23,7 @@
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "dotenv": "^18.0.8",
+    "exceljs": "^4.4.0",
     "mongoose": "^9.11.2",
     "node-cron": "^4.6.0",
     "pino": "^10.4.0",
