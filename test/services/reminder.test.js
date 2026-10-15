@@ -6,7 +6,9 @@ import {
   checkAndSendDailyReminders,
   evaluateReminder2Eligibility,
   processReminder2ForLog,
-  checkAndSendReminder2
+  checkAndSendReminder2,
+  evaluateFinalizationEligibility,
+  finalizeDailyUnconfirmedLogs
 } from '../../src/services/reminder.js';
 import { Patient, ReminderLog } from '../../src/db/models.js';
 import { PATIENT_STATE, REMINDER_STATUS } from '../../src/utils/constants.js';
@@ -449,5 +451,196 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
       });
     });
   });
+
+  describe('Daily Finalization (FR-18: 23:59 WIB Tidak Konfirmasi)', () => {
+    describe('evaluateFinalizationEligibility (Fungsi Murni)', () => {
+      it('menolak jika log null', () => {
+        const res = evaluateFinalizationEligibility({ log: null });
+        assert.equal(res.eligible, false);
+        assert.equal(res.reason, 'NO_LOG');
+      });
+
+      it('menolak jika status log bukan Menunggu (misal Tepat Waktu atau Terlambat)', () => {
+        const res1 = evaluateFinalizationEligibility({
+          log: { status: REMINDER_STATUS.TEPAT_WAKTU, tanggal: '2026-10-15' },
+          now: new Date('2026-10-15T16:59:00Z') // 23:59 WIB
+        });
+        assert.equal(res1.eligible, false);
+        assert.equal(res1.reason, 'STATUS_NOT_MENUNGGU');
+
+        const res2 = evaluateFinalizationEligibility({
+          log: { status: REMINDER_STATUS.TIDAK_KONFIRMASI, tanggal: '2026-10-15' },
+          now: new Date('2026-10-15T16:59:00Z')
+        });
+        assert.equal(res2.eligible, false);
+        assert.equal(res2.reason, 'STATUS_NOT_MENUNGGU');
+      });
+
+      it('menolak jika log hari ini tapi waktu belum mencapai 23:59 WIB', () => {
+        // 23:58 WIB (16:58 UTC)
+        const now2358 = new Date('2026-10-15T16:58:00Z');
+        const res = evaluateFinalizationEligibility({
+          log: { status: REMINDER_STATUS.MENUNGGU, tanggal: '2026-10-15' },
+          now: now2358
+        });
+        assert.equal(res.eligible, false);
+        assert.equal(res.reason, 'TIME_NOT_ARRIVED');
+        assert.equal(res.currentTime, '23:58');
+      });
+
+      it('menyetujui jika log hari ini dan waktu tepat 23:59 WIB', () => {
+        // 23:59 WIB (16:59 UTC)
+        const now2359 = new Date('2026-10-15T16:59:00Z');
+        const res = evaluateFinalizationEligibility({
+          log: { status: REMINDER_STATUS.MENUNGGU, tanggal: '2026-10-15' },
+          now: now2359
+        });
+        assert.equal(res.eligible, true);
+        assert.equal(res.action, 'FINALIZE_UNCONFIRMED');
+        assert.equal(res.reason, 'END_OF_DAY_REACHED');
+      });
+
+      it('menyetujui jika opsi force aktif meskipun belum 23:59 WIB', () => {
+        // 14:00 WIB (07:00 UTC)
+        const now1400 = new Date('2026-10-15T07:00:00Z');
+        const res = evaluateFinalizationEligibility({
+          log: { status: REMINDER_STATUS.MENUNGGU, tanggal: '2026-10-15' },
+          now: now1400,
+          options: { force: true }
+        });
+        assert.equal(res.eligible, true);
+        assert.equal(res.action, 'FINALIZE_UNCONFIRMED');
+      });
+
+      it('menyetujui jika log berasal dari hari-hari sebelumnya (catch-up saat server restart)', () => {
+        // Hari ini: 16 Okt 2026 08:00 WIB, Log: 15 Okt 2026
+        const nowNextDay = new Date('2026-10-16T01:00:00Z');
+        const res = evaluateFinalizationEligibility({
+          log: { status: REMINDER_STATUS.MENUNGGU, tanggal: '2026-10-15' },
+          now: nowNextDay
+        });
+        assert.equal(res.eligible, true);
+        assert.equal(res.action, 'FINALIZE_UNCONFIRMED');
+        assert.equal(res.reason, 'PAST_DAY_UNCONFIRMED');
+      });
+    });
+
+    describe('finalizeDailyUnconfirmedLogs (Database & Idempotensi)', () => {
+      it('berhasil memfinalisasi log Menunggu menjadi Tidak Konfirmasi pada 23:59 WIB', async () => {
+        const mockLog1 = {
+          _id: 'log-waiting-1',
+          patientId: 'p1',
+          tanggal: '2026-10-15',
+          status: REMINDER_STATUS.MENUNGGU,
+          save: async function () {
+            this.saved = true;
+          }
+        };
+        const mockLog2 = {
+          _id: 'log-waiting-2',
+          patientId: 'p2',
+          tanggal: '2026-10-15',
+          status: REMINDER_STATUS.MENUNGGU,
+          save: async function () {
+            this.saved = true;
+          }
+        };
+
+        const origFind = ReminderLog.find;
+        ReminderLog.find = async (query) => {
+          assert.equal(query.status, REMINDER_STATUS.MENUNGGU);
+          return [mockLog1, mockLog2];
+        };
+
+        try {
+          // 23:59 WIB (16:59 UTC)
+          const now = new Date('2026-10-15T16:59:00Z');
+          const result = await finalizeDailyUnconfirmedLogs(now);
+
+          assert.equal(result.targetDate, '2026-10-15');
+          assert.equal(result.modifiedCount, 2);
+          assert.equal(mockLog1.status, REMINDER_STATUS.TIDAK_KONFIRMASI);
+          assert.equal(mockLog2.status, REMINDER_STATUS.TIDAK_KONFIRMASI);
+          assert.equal(mockLog1.saved, true);
+          assert.equal(mockLog2.saved, true);
+        } finally {
+          ReminderLog.find = origFind;
+        }
+      });
+
+      it('idempoten dan aman dijalankan ulang (tidak mengubah yang sudah Tidak Konfirmasi)', async () => {
+        const origFind = ReminderLog.find;
+        // Pada pemanggilan kedua, tidak ada lagi log Menunggu
+        ReminderLog.find = async () => [];
+
+        try {
+          const now = new Date('2026-10-15T16:59:30Z');
+          const result = await finalizeDailyUnconfirmedLogs(now);
+
+          assert.equal(result.targetDate, '2026-10-15');
+          assert.equal(result.modifiedCount, 0);
+          assert.deepEqual(result.logIds, []);
+        } finally {
+          ReminderLog.find = origFind;
+        }
+      });
+
+      it('mengisolasi error jika salah satu dokumen log gagal disimpan', async () => {
+        const mockLogSuccess = {
+          _id: 'log-ok',
+          patientId: 'p1',
+          tanggal: '2026-10-15',
+          status: REMINDER_STATUS.MENUNGGU,
+          save: async function () {
+            this.saved = true;
+          }
+        };
+        const mockLogFail = {
+          _id: 'log-fail',
+          patientId: 'p2',
+          tanggal: '2026-10-15',
+          status: REMINDER_STATUS.MENUNGGU,
+          save: async () => {
+            throw new Error('Database disk error');
+          }
+        };
+
+        const origFind = ReminderLog.find;
+        ReminderLog.find = async () => [mockLogFail, mockLogSuccess];
+
+        try {
+          const now = new Date('2026-10-15T16:59:00Z');
+          const result = await finalizeDailyUnconfirmedLogs(now);
+
+          // log-ok berhasil diproses meski log-fail error
+          assert.equal(result.modifiedCount, 1);
+          assert.equal(mockLogSuccess.status, REMINDER_STATUS.TIDAK_KONFIRMASI);
+          assert.equal(mockLogSuccess.saved, true);
+        } finally {
+          ReminderLog.find = origFind;
+        }
+      });
+
+      it('dapat menerima opsi targetDate spesifik', async () => {
+        let queriedTanggal = null;
+        const origFind = ReminderLog.find;
+        ReminderLog.find = async (query) => {
+          queriedTanggal = query.tanggal;
+          return [];
+        };
+
+        try {
+          const result = await finalizeDailyUnconfirmedLogs(new Date(), {
+            date: '2026-10-10'
+          });
+          assert.equal(queriedTanggal, '2026-10-10');
+          assert.equal(result.targetDate, '2026-10-10');
+        } finally {
+          ReminderLog.find = origFind;
+        }
+      });
+    });
+  });
 });
+
 

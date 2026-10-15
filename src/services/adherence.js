@@ -121,3 +121,9 @@ export async function handleAdherenceConfirmation(jid, text, options = {}) {
   await sendFn(jid, getNoActiveReminderMessage(patient.nama));
   return { handled: true, action: 'closed_log', status: todayLog.status };
 }
+
+export {
+  finalizeDailyUnconfirmedLogs,
+  evaluateFinalizationEligibility
+} from './reminder.js';
+

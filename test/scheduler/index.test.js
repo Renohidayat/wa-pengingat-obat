@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { startScheduler, stopScheduler } from '../../src/scheduler/index.js';
 
-describe('Scheduler Service (FR-10)', () => {
+describe('Scheduler Service (FR-10, FR-17, FR-18)', () => {
   it('berhasil memulai dan menghentikan scheduler cron', () => {
     const task = startScheduler({
       sendFn: async () => {}
@@ -15,3 +15,4 @@ describe('Scheduler Service (FR-10)', () => {
     stopScheduler();
   });
 });
+
