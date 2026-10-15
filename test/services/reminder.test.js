@@ -97,6 +97,32 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
       assert.equal(res.diffMinutes, 35);
     });
 
+    it('menyetujui pengiriman catch-up jika tepat 60 menit terlewat (batas maksimum FR-13)', () => {
+      // 08:00 WIB (terlewat tepat 60 menit dari jadwal 07:00)
+      const now60 = new Date('2026-10-15T01:00:00Z');
+      const res = evaluateReminder1Eligibility({
+        patient: basePatient,
+        now: now60
+      });
+
+      assert.equal(res.eligible, true);
+      assert.equal(res.action, 'SEND_REMINDER_1');
+      assert.equal(res.diffMinutes, 60);
+    });
+
+    it('mencatat Terlewat Sistem jika terlewat 61 menit (> 60 menit batas FR-13)', () => {
+      // 08:01 WIB (terlewat 61 menit dari jadwal 07:00)
+      const now61 = new Date('2026-10-15T01:01:00Z');
+      const res = evaluateReminder1Eligibility({
+        patient: basePatient,
+        now: now61
+      });
+
+      assert.equal(res.eligible, true);
+      assert.equal(res.action, 'RECORD_SYSTEM_MISSED');
+      assert.equal(res.diffMinutes, 61);
+    });
+
     it('mencatat Terlewat Sistem jika terlewat > 60 menit dan TIDAK mengirim pesan (FR-13)', () => {
       // 08:30 WIB (terlewat 90 menit)
       const nowMissed = new Date('2026-10-15T01:30:00Z');
@@ -110,6 +136,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
       assert.equal(res.diffMinutes, 90);
     });
   });
+
 
   describe('processReminder1ForPatient & Idempotensi', () => {
     let origFindOne;

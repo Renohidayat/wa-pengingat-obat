@@ -199,5 +199,37 @@ describe('Adherence Confirmation & Status (FR-14 s.d. FR-16, FR-19)', () => {
       assert.equal(sent.length, 1);
       assert.match(sent[0].text, /sudah tercatat sebelumnya/);
     });
+
+    it('membalas pesan netral jika log sudah difinalisasi Tidak Konfirmasi atau Terlewat Sistem', async () => {
+      Patient.findOne = async () => ({
+        _id: 'p1',
+        nama: 'Sukanti',
+        state: PATIENT_STATE.ACTIVE
+      });
+
+      const mockLogClosed = {
+        _id: 'log-closed',
+        status: REMINDER_STATUS.TIDAK_KONFIRMASI
+      };
+      ReminderLog.findOne = async () => mockLogClosed;
+
+      const sent = [];
+      const res = await handleAdherenceConfirmation('6281@s.whatsapp.net', 'SUDAH', {
+        sendFn: async (jid, text) => sent.push({ jid, text })
+      });
+
+      assert.equal(res.handled, true);
+      assert.equal(res.action, 'closed_log');
+      assert.equal(res.status, REMINDER_STATUS.TIDAK_KONFIRMASI);
+      assert.equal(sent.length, 1);
+      assert.match(sent[0].text, /tidak ada jadwal pengingat/);
+    });
+
+    it('determineAdherenceStatus menangani parameter null secara aman', () => {
+      const res = determineAdherenceStatus(null);
+      assert.equal(res.alreadyConfirmed, false);
+      assert.equal(res.newStatus, null);
+    });
   });
 });
+
