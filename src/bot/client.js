@@ -69,15 +69,23 @@ export async function createBot(customOptions = {}) {
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version, isLatest } = await fetchLatestBaileysVersion();
 
-  logger.info({ version, isLatest }, 'Memulai koneksi Baileys WhatsApp');
+  const { onSocketCreated, ...baileysCustomOptions } = customOptions;
 
   sock = makeWASocket({
     version,
     auth: state,
     logger: logger.child({ module: 'baileys' }),
     printQRInTerminal: false, // Ditangani manual lewat qrcode-terminal
-    ...customOptions
+    ...baileysCustomOptions
   });
+
+  if (typeof onSocketCreated === 'function') {
+    try {
+      onSocketCreated(sock);
+    } catch (err) {
+      logger.error({ err: err.message }, 'Error saat menjalankan onSocketCreated');
+    }
+  }
 
   sock.ev.on('creds.update', saveCreds);
 

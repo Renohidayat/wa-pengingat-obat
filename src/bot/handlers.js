@@ -99,6 +99,9 @@ export function setupMessageHandlers(sock, handler = handleIncomingMessage) {
 
     for (const m of upsert.messages) {
       if (shouldIgnoreMessage(m)) {
+        if (m?.key?.fromMe) {
+          logger.info('Mengabaikan pesan dari nomor bot sendiri (fromMe: true)');
+        }
         continue;
       }
 
@@ -111,7 +114,7 @@ export function setupMessageHandlers(sock, handler = handleIncomingMessage) {
 
       // Isolasi error per pasien/pesan
       try {
-        logger.debug({ jid }, 'Menerima pesan masuk valid');
+        logger.info('Menerima dan memproses pesan masuk');
         if (typeof handler === 'function') {
           await handler({ jid, text, message: m });
         }
