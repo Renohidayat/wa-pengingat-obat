@@ -178,3 +178,16 @@ export function getAlreadyRegisteredMessage(nama, jamMinum) {
 
 ${MESSAGE_FOOTER}`;
 }
+
+/**
+ * Pesan jika pasien yang dihentikan (stopped) mengirim pesan.
+ * @param {string} [nama='']
+ * @returns {string}
+ */
+export function getPatientStoppedMessage(nama = '') {
+  const sapaan = nama ? ` ${nama}` : '';
+  return `Pengingat minum obat untuk Bapak/Ibu${sapaan} saat ini berstatus tidak aktif. Silakan hubungi peneliti jika ada pertanyaan.
+
+${MESSAGE_FOOTER}`;
+}
+
