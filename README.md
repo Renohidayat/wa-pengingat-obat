@@ -1,10 +1,5 @@
 # Bot WhatsApp Pengingat Minum Obat (Penelitian Kepatuhan)
 
-> **Pemilik Proyek**: Dea Farida  
-> **Konteks**: Penelitian Skripsi S1 Keperawatan, PUSKESMAS Sukarasa  
-> **Dokumentasi Sumber Kebenaran**: [docs/PRD.md](docs/PRD.md)  
-> **Aturan Kerja & Standar Kode**: [AGENTS.md](AGENTS.md)
-
 ---
 
 ## 1. Deskripsi
