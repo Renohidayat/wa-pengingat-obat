@@ -287,6 +287,19 @@ ${MESSAGE_FOOTER}`;
 }
 
 /**
+ * Pesan keterangan (caption) pengiriman file dokumen Excel kepatuhan ke admin (FR-33).
+ * @param {{ totalPatients: number, totalLogs: number }} params
+ * @returns {string}
+ */
+export function getAdminExportCaption({ totalPatients, totalLogs }) {
+  return `*Rekap Kepatuhan Pasien (.xlsx)*
+Total Pasien: ${totalPatients}
+Total Log: ${totalLogs}
+
+${MESSAGE_FOOTER}`;
+}
+
+/**
  * Pesan bantuan panduan perintah admin.
  * @returns {string}
  */
@@ -295,6 +308,7 @@ export function getAdminHelpMessage() {
 - *!rekap* : Ringkasan status kepatuhan hari ini
 - *!pasien* : Daftar seluruh pasien aktif beserta jam minum
 - *!stop <RM>* : Menghentikan pengingat minum obat pasien
+- *!export* / *!download* : Mengunduh file Excel (.xlsx) rekap dan log kepatuhan
 
 Contoh: !stop 123456
 
