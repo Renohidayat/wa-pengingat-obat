@@ -41,7 +41,7 @@ describe('Admin Service (FR-30 s.d. FR-32)', () => {
       assert.equal(parseAdminCommand(''), null);
     });
 
-    it('berhasil mem-parsing perintah !rekap, !pasien, dan !stop', () => {
+    it('berhasil mem-parsing perintah !rekap, !pasien, !stop, !export, dan !download', () => {
       assert.deepEqual(parseAdminCommand('!rekap'), {
         isCommand: true,
         command: 'rekap',
@@ -61,6 +61,16 @@ describe('Admin Service (FR-30 s.d. FR-32)', () => {
         isCommand: true,
         command: 'stop',
         args: 'RM-001 Sukanti'
+      });
+      assert.deepEqual(parseAdminCommand('!export'), {
+        isCommand: true,
+        command: 'export',
+        args: ''
+      });
+      assert.deepEqual(parseAdminCommand('!download'), {
+        isCommand: true,
+        command: 'download',
+        args: ''
       });
     });
   });
@@ -256,6 +266,60 @@ describe('Admin Service (FR-30 s.d. FR-32)', () => {
       }
     });
 
+    it('berhasil mengekspor dan mengirimkan file Excel dokumen kepatuhan ke admin via !export dan !download (FR-33)', async () => {
+      const mockResult = {
+        filePath: 'exports/rekap-kepatuhan-2026-10-15.xlsx',
+        totalPatients: 5,
+        totalLogs: 20
+      };
+      const dummyBuffer = Buffer.from('mock-excel-binary');
+      const sentTexts = [];
+      const sentDocs = [];
+
+      const mockExportFn = async () => mockResult;
+
+      // Test !export
+      const resExport = await handleAdminCommand(adminJid, '!export', {
+        adminNumbers,
+        fileBuffer: dummyBuffer,
+        exportFn: mockExportFn,
+        sendFn: async (jid, text) => sentTexts.push({ jid, text }),
+        sendDocFn: async (jid, docMsg) => sentDocs.push({ jid, docMsg })
+      });
+
+      assert.equal(resExport.handled, true);
+      assert.equal(resExport.action, 'export');
+      assert.equal(resExport.totalPatients, 5);
+      assert.equal(resExport.totalLogs, 20);
+      assert.equal(resExport.fileName, 'rekap-kepatuhan-2026-10-15.xlsx');
+
+      assert.equal(sentTexts.length, 1);
+      assert.match(sentTexts[0].text, /menyiapkan file rekap kepatuhan Excel/);
+
+      assert.equal(sentDocs.length, 1);
+      assert.equal(sentDocs[0].jid, adminJid);
+      assert.equal(sentDocs[0].docMsg.fileName, 'rekap-kepatuhan-2026-10-15.xlsx');
+      assert.equal(
+        sentDocs[0].docMsg.mimetype,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      assert.equal(sentDocs[0].docMsg.document, dummyBuffer);
+      assert.match(sentDocs[0].docMsg.caption, /Total Pasien: 5/);
+      assert.match(sentDocs[0].docMsg.caption, /Total Log: 20/);
+
+      // Test alias !download
+      const resDownload = await handleAdminCommand(adminJid, '!download', {
+        adminNumbers,
+        fileBuffer: dummyBuffer,
+        exportFn: mockExportFn,
+        sendFn: async (jid, text) => sentTexts.push({ jid, text }),
+        sendDocFn: async (jid, docMsg) => sentDocs.push({ jid, docMsg })
+      });
+      assert.equal(resDownload.handled, true);
+      assert.equal(resDownload.action, 'export');
+      assert.equal(sentDocs.length, 2);
+    });
+
     it('memberikan panduan bantuan untuk perintah admin tidak dikenal', async () => {
       const sent = [];
       const res = await handleAdminCommand(adminJid, '!unknown_command', {
@@ -267,6 +331,8 @@ describe('Admin Service (FR-30 s.d. FR-32)', () => {
       assert.equal(res.action, 'help');
       assert.equal(sent.length, 1);
       assert.match(sent[0].text, /Panduan Perintah Admin Peneliti/);
+      assert.match(sent[0].text, /!export/);
+      assert.match(sent[0].text, /!download/);
     });
   });
 });

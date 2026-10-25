@@ -1,8 +1,10 @@
 /**
- * Service pemrosesan perintah admin untuk peneliti (FR-30 s.d. FR-32).
+ * Service pemrosesan perintah admin untuk peneliti (FR-30 s.d. FR-33).
  * Dibatasi ketat hanya untuk nomor yang terdaftar pada ADMIN_NUMBERS.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { Patient, ReminderLog } from '../db/models.js';
 import { PATIENT_STATE, REMINDER_STATUS } from '../utils/constants.js';
 import { formatDateWib } from '../utils/time.js';
@@ -12,9 +14,11 @@ import {
   getAdminPasienMessage,
   getAdminStopSuccessMessage,
   getAdminStopNotFoundMessage,
+  getAdminExportCaption,
   getAdminHelpMessage
 } from '../utils/messages.js';
-import { send } from '../bot/client.js';
+import { send, sendDocument } from '../bot/client.js';
+import { exportAdherenceToExcel } from './export.js';
 import { getConfig } from '../config.js';
 import { logger } from '../utils/logger.js';
 
@@ -181,7 +185,47 @@ export async function handleAdminCommand(jid, text, options = {}) {
       };
     }
 
-    // 4. Perintah bantuan / tidak dikenal
+    // 4. Perintah !export atau !download (FR-33)
+    if (command === 'export' || command === 'download') {
+      const sendDocFn = options.sendDocFn || sendDocument;
+      const exportFn = options.exportFn || exportAdherenceToExcel;
+
+      await sendFn(
+        jid,
+        'Sedang menyiapkan file rekap kepatuhan Excel (.xlsx), mohon tunggu sebentar...'
+      );
+
+      const result = await exportFn(undefined, { now });
+      const fileBuffer = options.fileBuffer || fs.readFileSync(result.filePath);
+      const fileName = path.basename(result.filePath);
+      const caption = getAdminExportCaption({
+        totalPatients: result.totalPatients,
+        totalLogs: result.totalLogs
+      });
+
+      await sendDocFn(jid, {
+        document: fileBuffer,
+        fileName,
+        mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        caption
+      });
+
+      logger.info(
+        { fileName, totalPatients: result.totalPatients, totalLogs: result.totalLogs },
+        'File dokumen Excel berhasil dikirim ke admin via WhatsApp'
+      );
+
+      return {
+        handled: true,
+        action: 'export',
+        fileName,
+        filePath: result.filePath,
+        totalPatients: result.totalPatients,
+        totalLogs: result.totalLogs
+      };
+    }
+
+    // 5. Perintah bantuan / tidak dikenal
     await sendFn(jid, getAdminHelpMessage());
     return { handled: true, action: 'help' };
   } catch (error) {

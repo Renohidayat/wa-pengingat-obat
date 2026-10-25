@@ -98,6 +98,7 @@ Jam pasien tiba (WIB) dan hari ini bukan hari registrasi
 | FR-30 | Admin `!rekap`: ringkasan hari ini (jumlah Tepat Waktu / Terlambat / Menunggu / Tidak Konfirmasi) | P1 |
 | FR-31 | Admin `!pasien`: daftar pasien aktif beserta jam minum | P1 |
 | FR-32 | Admin `!stop <RM>`: hentikan pengingat pasien (state `stopped`) | P1 |
+| FR-33 | Admin `!export` / `!download`: generate dan kirim file dokumen Excel (`.xlsx`) langsung ke chat WhatsApp | P1 |
 | FR-40 | `npm run export` menghasilkan `.xlsx` berisi sheet **Log Kepatuhan** dan **Rekap Pasien** | P0 |
 
 Perintah admin hanya diterima dari nomor di `ADMIN_NUMBERS`.

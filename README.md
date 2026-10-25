@@ -115,6 +115,13 @@ Mengikuti panduan arsitektur pada PRD §10:
    node scripts/export-excel.js exports/laporan-skripsi.xlsx
    ```
 
+7. **Perintah Admin Peneliti via WhatsApp**:
+   Nomor yang terdaftar pada `ADMIN_NUMBERS` dapat mengirim perintah langsung ke bot:
+   - `!rekap` : Ringkasan status kepatuhan hari ini.
+   - `!pasien` : Daftar pasien aktif beserta jadwal jam minum obat.
+   - `!stop <RM>` : Menghentikan pengingat minum obat pasien tertentu.
+   - `!export` atau `!download` : Bot akan meng-generate file Excel (`.xlsx`) kepatuhan dan mengirimkannya langsung sebagai berkas dokumen ke chat WhatsApp.
+
 
 ---
 

@@ -58,6 +58,30 @@ export async function send(jid, text, options = {}) {
 }
 
 /**
+ * Mengirimkan dokumen (file) ke WhatsApp dengan penerapan jeda acak (FR-20, FR-33).
+ * @param {string} jid WhatsApp JID tujuan
+ * @param {{ document: any, fileName?: string, mimetype?: string, caption?: string }} docMessage
+ * @param {object} [options={}] Opsi tambahan
+ * @param {boolean} [options.skipDelay=false] Lewati jeda (berguna untuk pengujian)
+ * @param {number} [options.minDelay=1500]
+ * @param {number} [options.maxDelay=4000]
+ * @returns {Promise<any>}
+ */
+export async function sendDocument(jid, docMessage, options = {}) {
+  if (!sock) {
+    throw new Error('Koneksi WhatsApp belum terinisialisasi');
+  }
+
+  if (!options.skipDelay) {
+    const delay = getRandomDelay(options.minDelay || 1500, options.maxDelay || 4000);
+    logger.debug({ delayMs: delay }, 'Menerapkan jeda acak sebelum pengiriman dokumen');
+    await sleep(delay);
+  }
+
+  return await sock.sendMessage(jid, docMessage);
+}
+
+/**
  * Menginisialisasi koneksi klien WhatsApp Baileys.
  * @param {object} [customOptions={}] Opsi kustom untuk pengujian/eksternal
  * @returns {Promise<any>}
