@@ -26,6 +26,8 @@ yarn-error.log*
 # Runtime / OS files
 .DS_Store
 Thumbs.db
+~$*.docx
+~$*.tmp
 
 # IDEs & Editors
 .vscode/
