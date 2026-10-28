@@ -40,4 +40,23 @@ describe('Config Loader & Validation', () => {
     const config = loadConfig(mockEnv);
     assert.deepEqual(config.ADMIN_NUMBERS, ['6281234567890', '6289900001111']);
   });
+
+  it('mem-parsing DNS_SERVERS dari string terpisah koma', () => {
+    const mockEnv = {
+      MONGODB_URI: 'mongodb://localhost:27017/test-db',
+      DNS_SERVERS: ' 1.1.1.1, 8.8.8.8 , 9.9.9.9 '
+    };
+
+    const config = loadConfig(mockEnv);
+    assert.deepEqual(config.DNS_SERVERS, ['1.1.1.1', '8.8.8.8', '9.9.9.9']);
+  });
+
+  it('mengembalikan array kosong jika DNS_SERVERS tidak diatur', () => {
+    const mockEnv = {
+      MONGODB_URI: 'mongodb://localhost:27017/test-db'
+    };
+
+    const config = loadConfig(mockEnv);
+    assert.deepEqual(config.DNS_SERVERS, []);
+  });
 });

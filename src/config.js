@@ -15,7 +15,8 @@ dotenv.config();
  *   LOG_LEVEL: string,
  *   MONGODB_URI: string,
  *   ADMIN_NUMBERS: string[],
- *   AUTH_DIR: string
+ *   AUTH_DIR: string,
+ *   DNS_SERVERS: string[]
  * }}
  */
 export function loadConfig(env = process.env) {
@@ -35,13 +36,19 @@ export function loadConfig(env = process.env) {
     .map((num) => num.trim().replace(/[^0-9]/g, ''))
     .filter(Boolean);
 
+  const rawDns = env.DNS_SERVERS || '';
+  const DNS_SERVERS = rawDns
+    ? rawDns.split(',').map((item) => item.trim()).filter(Boolean)
+    : [];
+
   return {
     NODE_ENV,
     TZ,
     LOG_LEVEL,
     MONGODB_URI,
     ADMIN_NUMBERS,
-    AUTH_DIR
+    AUTH_DIR,
+    DNS_SERVERS
   };
 }
 

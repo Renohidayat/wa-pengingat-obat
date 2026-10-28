@@ -96,7 +96,7 @@ export async function bootstrap(options = {}) {
 
   // 1. Hubungkan ke database MongoDB
   logger.info('Menghubungkan ke database MongoDB...');
-  await connectDbFn(config.MONGODB_URI);
+  await connectDbFn(config.MONGODB_URI, { dnsServers: options.dnsServers || config.DNS_SERVERS });
 
   // 2. Buat koneksi Baileys WhatsApp dengan auto-attach handler saat inisialisasi & reconnect
   const sock = options.sock || (await createBotFn({
