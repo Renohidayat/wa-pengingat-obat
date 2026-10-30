@@ -37,10 +37,13 @@ ${MESSAGE_FOOTER}`;
 export function getRequestDataMessage() {
   return `Terima kasih, Bapak/Ibu. Silakan balas pesan ini dengan data berikut:
 
-Nama Lengkap / No. Rekam Medis (RM) / Jam Minum Obat (contoh: 07.00)
+Nama Lengkap / No. Rekam Medis (RM) / Jam Minum Obat
 
-Contoh balasan:
+Contoh 1 jadwal:
 Sukanti / 123456 / 07.00
+
+Contoh 2 jadwal (pagi dan malam):
+Sukanti / 123456 / 07.00 / 19.00
 
 ${MESSAGE_FOOTER}`;
 }
@@ -54,8 +57,11 @@ export function getInvalidFormatMessage() {
 
 Nama Lengkap / No. Rekam Medis (RM) / Jam Minum Obat
 
-Contoh balasan:
+Contoh 1 jadwal:
 Sukanti / 123456 / 07.00
+
+Contoh 2 jadwal:
+Sukanti / 123456 / 07.00 / 19.00
 
 Catatan: Jam menggunakan format 24 jam (misal 07.00 atau 19.30).
 
@@ -238,30 +244,21 @@ ${MESSAGE_FOOTER}`;
 
 /**
  * Pesan daftar pasien aktif untuk admin (FR-31).
- * @param {Array<{ nama: string, noRM: string, jamMinum: string }>} patients
+ * @param {Array<{ nama: string, noRM: string, jamMinum: string[] }>} patients
  * @returns {string}
  */
 export function getAdminPasienMessage(patients = []) {
   if (patients.length === 0) {
-    return `*Daftar Pasien Aktif*
-
-Saat ini belum ada pasien yang berstatus aktif.
-
-${MESSAGE_FOOTER}`;
+    return `*Daftar Pasien Aktif*\n\nSaat ini belum ada pasien yang berstatus aktif.\n\n${MESSAGE_FOOTER}`;
   }
 
   const listText = patients
     .map(
-      (p, i) => `${i + 1}. ${p.nama} (RM: ${p.noRM}) - ${p.jamMinum} WIB`
+      (p, i) => `${i + 1}. ${p.nama} (RM: ${p.noRM}) - ${Array.isArray(p.jamMinum) ? p.jamMinum.join(' & ') : p.jamMinum} WIB`
     )
     .join('\n');
 
-  return `*Daftar Pasien Aktif*
-Total: ${patients.length} pasien
-
-${listText}
-
-${MESSAGE_FOOTER}`;
+  return `*Daftar Pasien Aktif*\nTotal: ${patients.length} pasien\n\n${listText}\n\n${MESSAGE_FOOTER}`;
 }
 
 /**

@@ -30,9 +30,8 @@ const patientSchema = new mongoose.Schema(
       default: null
     },
     jamMinum: {
-      type: String,
-      trim: true,
-      default: null
+      type: [String],
+      default: []
     },
     registeredAt: {
       type: Date,
@@ -96,8 +95,8 @@ const reminderLogSchema = new mongoose.Schema(
   }
 );
 
-// Unique compound index pada patientId + tanggal: mencegah duplikasi pengingat harian (FR-12)
-reminderLogSchema.index({ patientId: 1, tanggal: 1 }, { unique: true });
+// Unique compound index pada patientId + tanggal + jadwal: mencegah duplikasi per jadwal per hari (FR-12)
+reminderLogSchema.index({ patientId: 1, tanggal: 1, jadwal: 1 }, { unique: true });
 
 export const Patient = mongoose.models.Patient || mongoose.model('Patient', patientSchema);
 export const ReminderLog = mongoose.models.ReminderLog || mongoose.model('ReminderLog', reminderLogSchema);

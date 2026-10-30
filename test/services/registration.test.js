@@ -137,7 +137,7 @@ describe('Registration Service Flow (FR-03 s.d. FR-07)', () => {
     assert.equal(saveCalled, true);
     assert.equal(currentPatient.nama, 'Sukanti');
     assert.equal(currentPatient.noRM, '123456');
-    assert.equal(currentPatient.jamMinum, '07:00');
+    assert.deepEqual(currentPatient.jamMinum, ['07:00']);
     assert.equal(currentPatient.state, PATIENT_STATE.ACTIVE);
     assert.ok(currentPatient.registeredAt instanceof Date);
 
@@ -157,7 +157,7 @@ describe('Registration Service Flow (FR-03 s.d. FR-07)', () => {
     const activePatient = {
       jid,
       nama: 'Sukanti',
-      jamMinum: '07:00',
+      jamMinum: ['07:00'],
       state: PATIENT_STATE.ACTIVE,
       save: async () => {}
     };

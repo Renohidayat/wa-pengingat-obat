@@ -43,15 +43,18 @@ describe('Adherence Confirmation & Status (FR-14 s.d. FR-16, FR-19)', () => {
   describe('handleAdherenceConfirmation', () => {
     let origFindPatient;
     let origFindLog;
+    let origFindOneLog;
 
     beforeEach(() => {
       origFindPatient = Patient.findOne;
-      origFindLog = ReminderLog.findOne;
+      origFindLog = ReminderLog.find;
+      origFindOneLog = ReminderLog.findOne;
     });
 
     afterEach(() => {
       Patient.findOne = origFindPatient;
-      ReminderLog.findOne = origFindLog;
+      ReminderLog.find = origFindLog;
+      ReminderLog.findOne = origFindOneLog;
     });
 
     it('mengabaikan pesan yang bukan pemicu konfirmasi (handled: false)', async () => {
@@ -79,7 +82,8 @@ describe('Adherence Confirmation & Status (FR-14 s.d. FR-16, FR-19)', () => {
         nama: 'Sukanti',
         state: PATIENT_STATE.ACTIVE
       });
-      ReminderLog.findOne = async () => null; // Tidak ada pengingat hari ini
+      ReminderLog.find = async () => []; // Tidak ada log Menunggu hari ini
+      ReminderLog.findOne = async () => null; // Tidak ada log apapun hari ini
 
       const sent = [];
       const res = await handleAdherenceConfirmation('6281@s.whatsapp.net', 'SUDAH', {
@@ -103,6 +107,7 @@ describe('Adherence Confirmation & Status (FR-14 s.d. FR-16, FR-19)', () => {
       let saveCalled = false;
       const mockLog = {
         _id: 'log-1',
+        jadwal: '07:00',
         status: REMINDER_STATUS.MENUNGGU,
         reminder2At: null,
         confirmedAt: null,
@@ -110,7 +115,7 @@ describe('Adherence Confirmation & Status (FR-14 s.d. FR-16, FR-19)', () => {
           saveCalled = true;
         }
       };
-      ReminderLog.findOne = async () => mockLog;
+      ReminderLog.find = async () => [mockLog];
 
       const sent = [];
       const res = await handleAdherenceConfirmation('6281@s.whatsapp.net', 'SUDAH MINUM', {
@@ -139,6 +144,7 @@ describe('Adherence Confirmation & Status (FR-14 s.d. FR-16, FR-19)', () => {
       let saveCalled = false;
       const mockLog = {
         _id: 'log-1',
+        jadwal: '07:00',
         status: REMINDER_STATUS.MENUNGGU,
         reminder2At: new Date('2026-10-15T00:30:00Z'), // Pengingat 2 sudah dikirim
         confirmedAt: null,
@@ -146,7 +152,7 @@ describe('Adherence Confirmation & Status (FR-14 s.d. FR-16, FR-19)', () => {
           saveCalled = true;
         }
       };
-      ReminderLog.findOne = async () => mockLog;
+      ReminderLog.find = async () => [mockLog];
 
       const sent = [];
       const res = await handleAdherenceConfirmation('6281@s.whatsapp.net', 'sdh', {
@@ -174,14 +180,13 @@ describe('Adherence Confirmation & Status (FR-14 s.d. FR-16, FR-19)', () => {
         state: PATIENT_STATE.ACTIVE
       });
 
-      let saveCalled = false;
+      // Tidak ada log yang Menunggu (sudah dikonfirmasi)
+      ReminderLog.find = async () => [];
+      // Tapi ada log dengan status TEPAT_WAKTU
       const mockLog = {
         _id: 'log-1',
         status: REMINDER_STATUS.TEPAT_WAKTU,
-        confirmedAt: originalConfirmedAt,
-        save: async () => {
-          saveCalled = true;
-        }
+        confirmedAt: originalConfirmedAt
       };
       ReminderLog.findOne = async () => mockLog;
 
@@ -193,9 +198,6 @@ describe('Adherence Confirmation & Status (FR-14 s.d. FR-16, FR-19)', () => {
 
       assert.equal(res.handled, true);
       assert.equal(res.action, 'already_confirmed');
-      assert.equal(saveCalled, false); // Log tidak diubah
-      assert.equal(mockLog.status, REMINDER_STATUS.TEPAT_WAKTU);
-      assert.equal(mockLog.confirmedAt, originalConfirmedAt);
       assert.equal(sent.length, 1);
       assert.match(sent[0].text, /sudah tercatat sebelumnya/);
     });
@@ -207,11 +209,10 @@ describe('Adherence Confirmation & Status (FR-14 s.d. FR-16, FR-19)', () => {
         state: PATIENT_STATE.ACTIVE
       });
 
-      const mockLogClosed = {
-        _id: 'log-closed',
-        status: REMINDER_STATUS.TIDAK_KONFIRMASI
-      };
-      ReminderLog.findOne = async () => mockLogClosed;
+      // Tidak ada log Menunggu
+      ReminderLog.find = async () => [];
+      // Tidak ada log apapun hari ini
+      ReminderLog.findOne = async () => null;
 
       const sent = [];
       const res = await handleAdherenceConfirmation('6281@s.whatsapp.net', 'SUDAH', {
@@ -219,8 +220,7 @@ describe('Adherence Confirmation & Status (FR-14 s.d. FR-16, FR-19)', () => {
       });
 
       assert.equal(res.handled, true);
-      assert.equal(res.action, 'closed_log');
-      assert.equal(res.status, REMINDER_STATUS.TIDAK_KONFIRMASI);
+      assert.equal(res.action, 'no_active_reminder');
       assert.equal(sent.length, 1);
       assert.match(sent[0].text, /tidak ada jadwal pengingat/);
     });
