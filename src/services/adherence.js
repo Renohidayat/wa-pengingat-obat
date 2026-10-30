@@ -74,52 +74,56 @@ export async function handleAdherenceConfirmation(jid, text, options = {}) {
     return { handled: true, action: 'no_active_patient' };
   }
 
-  const todayLog = await ReminderLog.findOne({
+  // Ambil semua log hari ini yang masih Menunggu, ambil jadwal terbesar (terlambat) sebagai prioritas konfirmasi
+  const pendingLogs = await ReminderLog.find({
     patientId: patient._id,
-    tanggal: todayStr
+    tanggal: todayStr,
+    status: REMINDER_STATUS.MENUNGGU
   });
+  // Sort descending by jadwal di memory (kompatibel dengan mock test)
+  pendingLogs.sort((a, b) => (b.jadwal || '').localeCompare(a.jadwal || ''));
+  const todayLog = pendingLogs[0] || null;
 
   // FR-19: Pesan SUDAH tanpa ada pengingat aktif pada hari ini
   if (!todayLog) {
+    // Cek apakah ada log hari ini (sudah dikonfirmasi semuanya)
+    const anyTodayLog = await ReminderLog.findOne({
+      patientId: patient._id,
+      tanggal: todayStr
+    });
+
+    if (anyTodayLog &&
+      (anyTodayLog.status === REMINDER_STATUS.TEPAT_WAKTU ||
+       anyTodayLog.status === REMINDER_STATUS.TERLAMBAT)) {
+      // Semua jadwal sudah dikonfirmasi
+      logger.debug({ patientId: patient._id }, 'Konfirmasi ganda di hari yang sama diabaikan');
+      await sendFn(jid, getAlreadyConfirmedMessage(patient.nama));
+      return { handled: true, action: 'already_confirmed', status: anyTodayLog.status };
+    }
+
     await sendFn(jid, getNoActiveReminderMessage(patient.nama));
     return { handled: true, action: 'no_active_reminder' };
   }
 
-  // FR-16: Konfirmasi ganda di hari yang sama -> balas "sudah tercatat", tidak mengubah log
-  if (
-    todayLog.status === REMINDER_STATUS.TEPAT_WAKTU ||
-    todayLog.status === REMINDER_STATUS.TERLAMBAT
-  ) {
-    logger.debug({ patientId: patient._id }, 'Konfirmasi ganda di hari yang sama diabaikan');
-    await sendFn(jid, getAlreadyConfirmedMessage(patient.nama));
-    return { handled: true, action: 'already_confirmed', status: todayLog.status };
-  }
+  // todayLog pasti berstatus Menunggu karena query sudah filter (FR-15)
+  const { newStatus } = determineAdherenceStatus(todayLog);
 
-  // Jika log berstatus Menunggu (FR-15)
-  if (todayLog.status === REMINDER_STATUS.MENUNGGU) {
-    const { newStatus } = determineAdherenceStatus(todayLog);
+  todayLog.status = newStatus;
+  todayLog.confirmedAt = now;
+  await todayLog.save();
 
-    todayLog.status = newStatus;
-    todayLog.confirmedAt = now;
-    await todayLog.save();
+  logger.info(
+    { patientId: patient._id, jadwal: todayLog.jadwal, status: todayLog.status },
+    'Konfirmasi kepatuhan berhasil dicatat'
+  );
 
-    logger.info(
-      { patientId: patient._id, status: todayLog.status },
-      'Konfirmasi kepatuhan berhasil dicatat'
-    );
-
-    await sendFn(jid, getAdherenceConfirmedMessage(patient.nama));
-    return {
-      handled: true,
-      action: 'confirmed',
-      status: todayLog.status,
-      confirmedAt: now
-    };
-  }
-
-  // Jika status sudah final lain (misal Terlewat Sistem atau Tidak Konfirmasi)
-  await sendFn(jid, getNoActiveReminderMessage(patient.nama));
-  return { handled: true, action: 'closed_log', status: todayLog.status };
+  await sendFn(jid, getAdherenceConfirmedMessage(patient.nama));
+  return {
+    handled: true,
+    action: 'confirmed',
+    status: todayLog.status,
+    confirmedAt: now
+  };
 }
 
 export {

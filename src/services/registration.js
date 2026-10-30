@@ -39,7 +39,8 @@ export async function handleRegistrationMessage(jid, text, options = {}) {
       await patient.save();
       logger.info({ patientId: patient._id }, 'Pasien baru memulai registrasi');
     } else if (patient.state === PATIENT_STATE.ACTIVE) {
-      await sendFn(jid, getAlreadyRegisteredMessage(patient.nama, patient.jamMinum));
+      const jadwalTeks = patient.jamMinum.join(' dan ');
+      await sendFn(jid, getAlreadyRegisteredMessage(patient.nama, jadwalTeks));
       return { handled: true, action: 'already_active' };
     } else if (patient.state === PATIENT_STATE.STOPPED) {
       await sendFn(jid, getPatientStoppedMessage(patient.nama));
@@ -86,7 +87,8 @@ export async function handleRegistrationMessage(jid, text, options = {}) {
     await patient.save();
 
     logger.info({ patientId: patient._id }, 'Pasien berhasil terdaftar');
-    await sendFn(jid, getRegistrationSuccessMessage(patient.nama, patient.jamMinum));
+    const jadwalTeks = patient.jamMinum.join(' dan ');
+    await sendFn(jid, getRegistrationSuccessMessage(patient.nama, jadwalTeks));
     return { handled: true, action: 'registration_success' };
   }
 

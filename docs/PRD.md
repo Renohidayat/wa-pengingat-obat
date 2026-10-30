@@ -22,8 +22,8 @@ Bot WhatsApp yang (A) mendaftarkan pasien peserta penelitian dan (B) mengirim **
 ## 3. Ruang Lingkup
 
 ### In scope (v1)
-- **A. Registrasi pasien**: pesan perkenalan (via link/QR), perintah `DAFTAR`, input `Nama / No. RM / Jam minum obat`, pesan "Registrasi Berhasil".
-- **B.1 Pengingat obat**: pengingat harian pada jam pasien, konfirmasi `SUDAH`, pengingat ke-2 setelah 30 menit tanpa respons, pencatatan log kepatuhan.
+- **A. Registrasi pasien**: pesan perkenalan (via link/QR), perintah `DAFTAR`, input `Nama / No. RM / Jam minum obat` (1 atau 2 jam), pesan "Registrasi Berhasil".
+- **B.1 Pengingat obat**: pengingat harian pada setiap jam jadwal pasien (1–2 dosis/hari), konfirmasi `SUDAH`, pengingat ke-2 setelah 30 menit tanpa respons per jadwal, pencatatan log kepatuhan per jadwal.
 - Ekspor log ke Excel.
 - Perintah admin minimal untuk peneliti (lihat FR-30..32).
 
@@ -53,7 +53,8 @@ Bot WhatsApp yang (A) mendaftarkan pasien peserta penelitian dan (B) mengirim **
 Peneliti bagikan link wa.me/<nomor>?text=DAFTAR  (atau QR)
   → Pasien kirim "DAFTAR"
   → Bot: minta "Nama / No. RM / Jam"          [state: awaiting_data]
-  → Pasien: "Sukanti / 123456 / 07.00"
+  → Pasien: "Sukanti / 123456 / 07.00"              (1 jam)
+         atau "Sukanti / 123456 / 07.00 / 19.00"    (2 jam)
       valid   → simpan, state=active, kirim "Registrasi Berhasil"
       invalid → kirim contoh format, state tetap awaiting_data
 ```
@@ -61,12 +62,16 @@ Pesan perkenalan (A.1) dikirim peneliti secara **manual** atau ditempel pada des
 
 ### 6.2 Pengingat harian (B.1)
 ```
-Jam pasien tiba (WIB) dan hari ini bukan hari registrasi
-  → Bot kirim pengingat 1; buat log hari ini status "Menunggu"
+Setiap jam jadwal pasien tiba (WIB) dan hari ini bukan hari registrasi
+  → Bot kirim pengingat 1 (untuk jadwal ini); buat log hari ini + jadwal status "Menunggu"
   → Pasien balas SUDAH → status "Tepat Waktu", bot kirim terima kasih
   → 30 menit tanpa respons → bot kirim pengingat 2
         → Pasien balas SUDAH → status "Terlambat", bot kirim terima kasih
   → Sampai 23:59 WIB tetap tanpa respons → status "Tidak Konfirmasi"
+
+Jika pasien punya 2 jadwal (mis. 07:00 dan 19:00), proses di atas berjalan
+independen untuk masing-masing jadwal. Konfirmasi SUDAH dikaitkan ke log
+jadwal yang paling terakhir berstatus "Menunggu".
 ```
 
 ### 6.3 State pasien
@@ -79,16 +84,16 @@ Jam pasien tiba (WIB) dan hari ini bukan hari registrasi
 | FR-01 | Bot terhubung ke WhatsApp via QR (Baileys), sesi tersimpan di disk, auto-reconnect | P0 |
 | FR-02 | Abaikan pesan grup, status, dan pesan dari bot sendiri | P0 |
 | FR-03 | `DAFTAR` (case-insensitive, trim) memulai registrasi; pengguna baru otomatis dibuat | P0 |
-| FR-04 | Parser `Nama / RM / Jam`: pemisah `/`, jam menerima `07.00`, `7.00`, `07:00`; validasi jam 00:00–23:59; nama dan RM tidak kosong | P0 |
+| FR-04 | Parser `Nama / RM / Jam1` atau `Nama / RM / Jam1 / Jam2`: pemisah `/`, jam menerima `07.00`, `7.00`, `07:00`; validasi jam 00:00–23:59; nama dan RM tidak kosong; jika 2 jam, keduanya harus valid dan tidak boleh sama | P0 |
 | FR-05 | Data invalid → balasan contoh format, tanpa mengubah state | P0 |
 | FR-06 | RM unik: RM yang sudah terdaftar oleh nomor lain ditolak dengan pesan sopan | P1 |
 | FR-07 | Pesan "Registrasi Berhasil" hanya menyebut pengingat harian (tanpa edukasi) | P0 |
 | FR-10 | Scheduler berjalan tiap menit, zona waktu Asia/Jakarta | P0 |
-| FR-11 | Kirim pengingat 1 pada jam pasien; **tidak** dikirim pada hari registrasi (mulai besok) | P0 |
-| FR-12 | **Idempoten**: maksimal 1 log per pasien per tanggal (unique index) sehingga tidak ada pengingat ganda | P0 |
+| FR-11 | Kirim pengingat 1 pada setiap jam jadwal pasien; **tidak** dikirim pada hari registrasi (mulai besok) | P0 |
+| FR-12 | **Idempoten**: maksimal 1 log per pasien per tanggal **per jadwal** (unique index `patientId + tanggal + jadwal`) sehingga tidak ada pengingat ganda | P0 |
 | FR-13 | **Catch-up**: jika server mati lalu hidup lagi, pengingat yang terlewat ≤ 60 menit tetap dikirim; lebih dari itu dicatat `Terlewat Sistem` dan tidak dikirim | P1 |
 | FR-14 | Konfirmasi: `SUDAH`, `SUDAH MINUM`, `SDH`, `UDAH` (case-insensitive) | P0 |
-| FR-15 | Konfirmasi sebelum pengingat 2 → `Tepat Waktu`; sesudah pengingat 2 → `Terlambat`; simpan `confirmedAt` | P0 |
+| FR-15 | Konfirmasi sebelum pengingat 2 → `Tepat Waktu`; sesudah pengingat 2 → `Terlambat`; simpan `confirmedAt`. Jika pasien punya 2 jadwal, SUDAH dikaitkan ke log jadwal yang paling terakhir berstatus `Menunggu` | P0 |
 | FR-16 | Konfirmasi ganda di hari yang sama → balas "sudah tercatat", tidak mengubah log | P0 |
 | FR-17 | Pengingat 2 dikirim 30 menit setelah pengingat 1 bila status masih `Menunggu` | P0 |
 | FR-18 | Job akhir hari (23:59 WIB): log `Menunggu` → `Tidak Konfirmasi` | P0 |
@@ -114,8 +119,8 @@ PUSKESMAS Sukarasa
 Salam dinamis: Pagi (<11), Siang (11–14), Sore (15–17), Malam (≥18) berdasarkan WIB.
 
 - **Perkenalan (manual/link)**: sesuai dokumen A.1, diakhiri ajakan mengetik `DAFTAR`.
-- **Minta data**: sesuai A.3 dengan contoh `Sukanti / 123456 / 07.00`.
-- **Registrasi berhasil**: sesuai A.4, tetapi hanya baris "Pengingat minum obat setiap hari pukul <jam pasien>".
+- **Minta data**: sesuai A.3 dengan contoh `Sukanti / 123456 / 07.00` (1 jam) atau `Sukanti / 123456 / 07.00 / 19.00` (2 jam).
+- **Registrasi berhasil**: sesuai A.4, tetapi hanya baris "Pengingat minum obat setiap hari pukul \<jam1\>" atau "pukul \<jam1\> dan \<jam2\>" jika 2 jadwal.
 - **Pengingat 1**: teks B.1 ("Sudah waktunya untuk minum obat…") + instruksi ketik `SUDAH`.
 - **Terima kasih konfirmasi**: "Kepatuhan Bapak/Ibu hari ini sudah kami catat. Pertahankan ya!…"
 - **Pengingat 2**: "Kami mengingatkan kembali, Bapak/Ibu belum mengonfirmasi minum obat hari ini…" Karena registrasi tidak meminta nama obat, gunakan frasa "obat Bapak/Ibu" (tanpa placeholder `[Nama Obat]`).
@@ -128,7 +133,7 @@ Salam dinamis: Pagi (<11), Siang (11–14), Sore (15–17), Malam (≥18) berdas
 | jid | string, unique | ID WhatsApp |
 | state | enum | new, awaiting_data, active, stopped |
 | nama, noRM | string | noRM unik (partial index) |
-| jamMinum | string `HH:mm` | WIB |
+| jamMinum | array of string `HH:mm` | WIB; 1 atau 2 elemen |
 | registeredAt | Date | pengingat mulai hari berikutnya |
 | createdAt, updatedAt | Date | |
 
@@ -136,7 +141,7 @@ Salam dinamis: Pagi (<11), Siang (11–14), Sore (15–17), Malam (≥18) berdas
 | Field | Tipe | Catatan |
 |---|---|---|
 | patientId | ObjectId | |
-| tanggal | string `YYYY-MM-DD` (WIB) | unique bersama patientId |
+| tanggal | string `YYYY-MM-DD` (WIB) | unique bersama patientId + jadwal |
 | jadwal | string `HH:mm` | |
 | status | enum | Menunggu, Tepat Waktu, Terlambat, Tidak Konfirmasi, Terlewat Sistem |
 | reminder1At, reminder2At, confirmedAt | Date | |

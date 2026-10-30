@@ -63,11 +63,13 @@ export function isConfirmationTrigger(text) {
 
 
 /**
- * Mengurai pesan data registrasi dengan format: "Nama / No. RM / Jam Minum Obat" (FR-04).
+ * Mengurai pesan data registrasi dengan format:
+ * - 1 jadwal: "Nama / No. RM / Jam1" (FR-04)
+ * - 2 jadwal: "Nama / No. RM / Jam1 / Jam2"
  * Pemisah garis miring (/), jam menerima format 07.00, 7.00, 07:00.
- * Nama dan RM tidak boleh kosong.
+ * Nama dan RM tidak boleh kosong. Jika 2 jam, keduanya harus valid dan tidak boleh sama.
  * @param {string} text
- * @returns {{ valid: true, nama: string, noRM: string, jamMinum: string } | { valid: false, reason: string }}
+ * @returns {{ valid: true, nama: string, noRM: string, jamMinum: string[] } | { valid: false, reason: string }}
  */
 export function parseRegistrationText(text) {
   if (typeof text !== 'string') {
@@ -75,13 +77,13 @@ export function parseRegistrationText(text) {
   }
 
   const parts = text.split('/');
-  if (parts.length !== 3) {
+  if (parts.length < 3 || parts.length > 4) {
     return { valid: false, reason: 'JUMLAH_BAGIAN_TIDAK_SESUAI' };
   }
 
   const nama = parts[0].trim();
   const noRM = parts[1].trim();
-  const rawJam = parts[2].trim();
+  const rawJam1 = parts[2].trim();
 
   if (!nama) {
     return { valid: false, reason: 'NAMA_KOSONG' };
@@ -91,15 +93,30 @@ export function parseRegistrationText(text) {
     return { valid: false, reason: 'RM_KOSONG' };
   }
 
-  const jamMinum = parseTimeString(rawJam);
-  if (!jamMinum) {
+  const jam1 = parseTimeString(rawJam1);
+  if (!jam1) {
     return { valid: false, reason: 'JAM_TIDAK_VALID' };
+  }
+
+  // Jika ada bagian ke-4 (jam kedua)
+  if (parts.length === 4) {
+    const rawJam2 = parts[3].trim();
+    const jam2 = parseTimeString(rawJam2);
+    if (!jam2) {
+      return { valid: false, reason: 'JAM2_TIDAK_VALID' };
+    }
+    if (jam1 === jam2) {
+      return { valid: false, reason: 'JAM_SAMA' };
+    }
+    // Urutkan jadwal (ASC) agar konsisten
+    const jamMinum = [jam1, jam2].sort();
+    return { valid: true, nama, noRM, jamMinum };
   }
 
   return {
     valid: true,
     nama,
     noRM,
-    jamMinum
+    jamMinum: [jam1]
   };
 }

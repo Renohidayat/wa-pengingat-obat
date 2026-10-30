@@ -12,9 +12,10 @@ import { send } from '../bot/client.js';
 import { logger } from '../utils/logger.js';
 
 /**
- * Fungsi murni untuk mengevaluasi kelayakan pengiriman pengingat 1 pasien.
+ * Fungsi murni untuk mengevaluasi kelayakan pengiriman pengingat 1 untuk satu jadwal pasien.
  * @param {{
- *   patient: { state: string, jamMinum?: string, registeredAt?: Date },
+ *   patient: { state: string, jamMinum?: string[], registeredAt?: Date },
+ *   jadwal: string,
  *   now?: Date,
  *   todayLog?: any
  * }} params
@@ -26,12 +27,12 @@ import { logger } from '../utils/logger.js';
  *   todayStr?: string
  * }}
  */
-export function evaluateReminder1Eligibility({ patient, now = new Date(), todayLog = null }) {
+export function evaluateReminder1Eligibility({ patient, jadwal, now = new Date(), todayLog = null }) {
   if (!patient || patient.state !== PATIENT_STATE.ACTIVE) {
     return { eligible: false, reason: 'NOT_ACTIVE' };
   }
 
-  if (!patient.jamMinum) {
+  if (!jadwal) {
     return { eligible: false, reason: 'NO_SCHEDULE' };
   }
 
@@ -45,13 +46,13 @@ export function evaluateReminder1Eligibility({ patient, now = new Date(), todayL
     }
   }
 
-  // FR-12: Idempoten, maksimal 1 log per pasien per tanggal
+  // FR-12: Idempoten, maksimal 1 log per pasien per tanggal per jadwal
   if (todayLog) {
     return { eligible: false, reason: 'ALREADY_LOGGED', todayStr };
   }
 
   // Cek selisih menit jadwal dengan waktu sekarang
-  const diffMinutes = calculateMinuteDiff(patient.jamMinum, now);
+  const diffMinutes = calculateMinuteDiff(jadwal, now);
 
   // Jadwal belum tiba
   if (diffMinutes < 0) {
@@ -78,23 +79,25 @@ export function evaluateReminder1Eligibility({ patient, now = new Date(), todayL
 }
 
 /**
- * Memproses pengingat 1 untuk satu pasien.
+ * Memproses pengingat 1 untuk satu jadwal satu pasien.
  * @param {any} patient Dokumen pasien
+ * @param {string} jadwal Format HH:mm
  * @param {Date} [now=new Date()]
  * @param {object} [options={}]
  * @returns {Promise<{ handled: boolean, action?: string, reason?: string, logId?: any }>}
  */
-export async function processReminder1ForPatient(patient, now = new Date(), options = {}) {
+export async function processReminder1ForPatientSchedule(patient, jadwal, now = new Date(), options = {}) {
   const sendFn = options.sendFn || send;
   const todayStr = formatDateWib(now);
 
-  // Cek apakah sudah ada log hari ini
+  // Cek apakah sudah ada log hari ini untuk jadwal ini
   const todayLog = await ReminderLog.findOne({
     patientId: patient._id,
-    tanggal: todayStr
+    tanggal: todayStr,
+    jadwal
   });
 
-  const evaluation = evaluateReminder1Eligibility({ patient, now, todayLog });
+  const evaluation = evaluateReminder1Eligibility({ patient, jadwal, now, todayLog });
 
   if (!evaluation.eligible) {
     return { handled: false, reason: evaluation.reason };
@@ -106,13 +109,13 @@ export async function processReminder1ForPatient(patient, now = new Date(), opti
       const log = await ReminderLog.create({
         patientId: patient._id,
         tanggal: todayStr,
-        jadwal: patient.jamMinum,
+        jadwal,
         status: REMINDER_STATUS.MENUNGGU,
         reminder1At: now
       });
 
       logger.info(
-        { patientId: patient._id, jadwal: patient.jamMinum },
+        { patientId: patient._id, jadwal },
         'Mengirimkan pengingat 1 ke pasien'
       );
 
@@ -123,7 +126,7 @@ export async function processReminder1ForPatient(patient, now = new Date(), opti
     } catch (error) {
       // Menangani bentrok duplicate index secara aman
       if (error.code === 11000) {
-        logger.warn({ patientId: patient._id }, 'Log pengingat hari ini sudah ada (duplicate key prevented)');
+        logger.warn({ patientId: patient._id, jadwal }, 'Log pengingat hari ini sudah ada (duplicate key prevented)');
         return { handled: false, reason: 'DUPLICATE_KEY_IDEMPOTENT' };
       }
       throw error;
@@ -136,12 +139,12 @@ export async function processReminder1ForPatient(patient, now = new Date(), opti
       const log = await ReminderLog.create({
         patientId: patient._id,
         tanggal: todayStr,
-        jadwal: patient.jamMinum,
+        jadwal,
         status: REMINDER_STATUS.TERLEWAT_SISTEM
       });
 
       logger.warn(
-        { patientId: patient._id, diffMinutes: evaluation.diffMinutes },
+        { patientId: patient._id, jadwal, diffMinutes: evaluation.diffMinutes },
         'Pengingat terlewat > 60 menit dicatat Terlewat Sistem'
       );
 
@@ -158,6 +161,30 @@ export async function processReminder1ForPatient(patient, now = new Date(), opti
 }
 
 /**
+ * Memproses pengingat 1 untuk satu pasien (semua jadwal).
+ * @param {any} patient Dokumen pasien
+ * @param {Date} [now=new Date()]
+ * @param {object} [options={}]
+ * @returns {Promise<Array<{ jadwal: string, handled: boolean, action?: string, reason?: string }>>}
+ */
+export async function processReminder1ForPatient(patient, now = new Date(), options = {}) {
+  const schedules = Array.isArray(patient.jamMinum) ? patient.jamMinum : (patient.jamMinum ? [patient.jamMinum] : []);
+  const results = [];
+
+  for (const jadwal of schedules) {
+    try {
+      const res = await processReminder1ForPatientSchedule(patient, jadwal, now, options);
+      results.push({ jadwal, ...res });
+    } catch (error) {
+      logger.error({ err: error.message, patientId: patient._id, jadwal }, 'Gagal memproses pengingat 1 untuk jadwal pasien');
+      results.push({ jadwal, handled: false, error: error.message });
+    }
+  }
+
+  return results;
+}
+
+/**
  * Mengecek dan memproses pengingat 1 harian untuk semua pasien aktif.
  * Mengisolasi error per pasien (try/catch) agar kegagalan satu pasien tidak membatalkan yang lain.
  * @param {Date} [now=new Date()]
@@ -170,8 +197,8 @@ export async function checkAndSendDailyReminders(now = new Date(), options = {})
 
   for (const patient of activePatients) {
     try {
-      const res = await processReminder1ForPatient(patient, now, options);
-      results.push({ patientId: patient._id, success: true, ...res });
+      const scheduleResults = await processReminder1ForPatient(patient, now, options);
+      results.push({ patientId: patient._id, success: true, scheduleResults });
     } catch (error) {
       logger.error({ err: error.message }, 'Gagal memproses pengingat harian pasien');
       results.push({ patientId: patient._id, success: false, error: error.message });

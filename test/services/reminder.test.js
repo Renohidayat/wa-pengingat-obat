@@ -18,7 +18,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
     const basePatient = {
       _id: 'mock-id-1',
       nama: 'Sukanti',
-      jamMinum: '07:00',
+      jamMinum: ['07:00'],
       state: PATIENT_STATE.ACTIVE,
       registeredAt: new Date('2026-10-14T01:00:00Z') // Terdaftar kemarin
     };
@@ -26,6 +26,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
     it('menolak pasien yang statusnya bukan ACTIVE', () => {
       const res = evaluateReminder1Eligibility({
         patient: { ...basePatient, state: PATIENT_STATE.STOPPED },
+        jadwal: '07:00',
         now: new Date('2026-10-15T00:00:00Z') // 07:00 WIB
       });
       assert.equal(res.eligible, false);
@@ -40,6 +41,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
 
       const res = evaluateReminder1Eligibility({
         patient: registeredTodayPatient,
+        jadwal: '07:00',
         now: new Date('2026-10-15T00:00:00Z') // 07:00 WIB (15 Okt)
       });
 
@@ -51,6 +53,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
       const todayLog = { status: REMINDER_STATUS.MENUNGGU };
       const res = evaluateReminder1Eligibility({
         patient: basePatient,
+        jadwal: '07:00',
         now: new Date('2026-10-15T00:00:00Z'), // 07:00 WIB
         todayLog
       });
@@ -64,6 +67,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
       const nowBefore = new Date('2026-10-14T23:45:00Z');
       const res = evaluateReminder1Eligibility({
         patient: basePatient,
+        jadwal: '07:00',
         now: nowBefore
       });
 
@@ -76,6 +80,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
       const nowExact = new Date('2026-10-15T00:00:00Z');
       const res = evaluateReminder1Eligibility({
         patient: basePatient,
+        jadwal: '07:00',
         now: nowExact
       });
 
@@ -89,6 +94,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
       const nowCatchup = new Date('2026-10-15T00:35:00Z');
       const res = evaluateReminder1Eligibility({
         patient: basePatient,
+        jadwal: '07:00',
         now: nowCatchup
       });
 
@@ -102,6 +108,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
       const now60 = new Date('2026-10-15T01:00:00Z');
       const res = evaluateReminder1Eligibility({
         patient: basePatient,
+        jadwal: '07:00',
         now: now60
       });
 
@@ -115,6 +122,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
       const now61 = new Date('2026-10-15T01:01:00Z');
       const res = evaluateReminder1Eligibility({
         patient: basePatient,
+        jadwal: '07:00',
         now: now61
       });
 
@@ -128,12 +136,26 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
       const nowMissed = new Date('2026-10-15T01:30:00Z');
       const res = evaluateReminder1Eligibility({
         patient: basePatient,
+        jadwal: '07:00',
         now: nowMissed
       });
 
       assert.equal(res.eligible, true);
       assert.equal(res.action, 'RECORD_SYSTEM_MISSED');
       assert.equal(res.diffMinutes, 90);
+    });
+
+    it('menyetujui pengiriman jadwal ke-2 (multi-dosis) secara independen', () => {
+      // 19:00 WIB - jadwal kedua
+      const nowEvening = new Date('2026-10-15T12:00:00Z');
+      const res = evaluateReminder1Eligibility({
+        patient: basePatient,
+        jadwal: '19:00',
+        now: nowEvening
+      });
+
+      assert.equal(res.eligible, true);
+      assert.equal(res.action, 'SEND_REMINDER_1');
     });
   });
 
@@ -152,12 +174,12 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
       ReminderLog.create = origCreate;
     });
 
-    it('membuat log Menunggu dan mengirim pesan saat jadwal tiba', async () => {
+    it('membuat log Menunggu dan mengirim pesan saat jadwal tiba (1 jadwal)', async () => {
       const patient = {
         _id: 'mock-patient-id',
         jid: '62811111111@s.whatsapp.net',
         nama: 'Sukanti',
-        jamMinum: '07:00',
+        jamMinum: ['07:00'],
         state: PATIENT_STATE.ACTIVE,
         registeredAt: new Date('2026-10-14T00:00:00Z')
       };
@@ -176,14 +198,49 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
         return { _id: 'mock-log-id', ...payload };
       };
 
-      const res = await processReminder1ForPatient(patient, now, { sendFn: mockSend });
+      const results = await processReminder1ForPatient(patient, now, { sendFn: mockSend });
 
-      assert.equal(res.handled, true);
-      assert.equal(res.action, 'sent');
+      assert.equal(Array.isArray(results), true);
+      assert.equal(results.length, 1);
+      assert.equal(results[0].jadwal, '07:00');
+      assert.equal(results[0].handled, true);
+      assert.equal(results[0].action, 'sent');
       assert.equal(createdPayload.status, REMINDER_STATUS.MENUNGGU);
       assert.equal(createdPayload.jadwal, '07:00');
       assert.equal(sentMessages.length, 1);
       assert.match(sentMessages[0].text, /Sudah waktunya untuk minum obat/);
+    });
+
+    it('mengirim 2 pengingat saat 2 jadwal tiba (multi-dosis)', async () => {
+      const patient = {
+        _id: 'mock-patient-id',
+        jid: '62811111111@s.whatsapp.net',
+        nama: 'Sukanti',
+        jamMinum: ['07:00', '19:00'],
+        state: PATIENT_STATE.ACTIVE,
+        registeredAt: new Date('2026-10-14T00:00:00Z')
+      };
+
+      const now = new Date('2026-10-15T12:00:00Z'); // 19:00 WIB
+      const sentMessages = [];
+      const mockSend = async (jid, text) => {
+        sentMessages.push({ jid, text });
+      };
+
+      ReminderLog.findOne = async () => null;
+      ReminderLog.create = async (payload) => ({ _id: 'log-' + payload.jadwal, ...payload });
+
+      const results = await processReminder1ForPatient(patient, now, { sendFn: mockSend });
+
+      assert.equal(results.length, 2);
+      // Jadwal 07:00 sudah terlewat > 60 menit, jadi RECORD_SYSTEM_MISSED
+      const res07 = results.find(r => r.jadwal === '07:00');
+      assert.equal(res07.action, 'missed_system');
+      // Jadwal 19:00 tepat waktu
+      const res19 = results.find(r => r.jadwal === '19:00');
+      assert.equal(res19.handled, true);
+      assert.equal(res19.action, 'sent');
+      assert.equal(sentMessages.length, 1); // Hanya 1 pesan dikirim (19:00)
     });
 
     it('mencatat status Terlewat Sistem dan TIDAK mengirim pesan saat terlewat > 60 menit', async () => {
@@ -191,7 +248,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
         _id: 'mock-patient-id',
         jid: '62811111111@s.whatsapp.net',
         nama: 'Sukanti',
-        jamMinum: '07:00',
+        jamMinum: ['07:00'],
         state: PATIENT_STATE.ACTIVE,
         registeredAt: new Date('2026-10-14T00:00:00Z')
       };
@@ -210,10 +267,10 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
         return { _id: 'mock-log-id', ...payload };
       };
 
-      const res = await processReminder1ForPatient(patient, now, { sendFn: mockSend });
+      const results = await processReminder1ForPatient(patient, now, { sendFn: mockSend });
 
-      assert.equal(res.handled, true);
-      assert.equal(res.action, 'missed_system');
+      assert.equal(results[0].handled, true);
+      assert.equal(results[0].action, 'missed_system');
       assert.equal(createdPayload.status, REMINDER_STATUS.TERLEWAT_SISTEM);
       assert.equal(sentMessages.length, 0); // Tidak ada pesan yang dikirim
     });
@@ -223,7 +280,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
         _id: 'mock-patient-id',
         jid: '62811111111@s.whatsapp.net',
         nama: 'Sukanti',
-        jamMinum: '07:00',
+        jamMinum: ['07:00'],
         state: PATIENT_STATE.ACTIVE,
         registeredAt: new Date('2026-10-14T00:00:00Z')
       };
@@ -237,12 +294,12 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
         throw err;
       };
 
-      const res = await processReminder1ForPatient(patient, now, {
+      const results = await processReminder1ForPatient(patient, now, {
         sendFn: async () => {}
       });
 
-      assert.equal(res.handled, false);
-      assert.equal(res.reason, 'DUPLICATE_KEY_IDEMPOTENT');
+      assert.equal(results[0].handled, false);
+      assert.equal(results[0].reason, 'DUPLICATE_KEY_IDEMPOTENT');
     });
   });
 
@@ -266,7 +323,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
           _id: 'p1',
           jid: '6281@s.whatsapp.net',
           nama: 'Pasien Normal 1',
-          jamMinum: '07:00',
+          jamMinum: ['07:00'],
           state: PATIENT_STATE.ACTIVE,
           registeredAt: new Date('2026-10-14T00:00:00Z')
         },
@@ -274,7 +331,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
           _id: 'p2-error',
           jid: '6282@s.whatsapp.net',
           nama: 'Pasien Gagal',
-          jamMinum: '07:00',
+          jamMinum: ['07:00'],
           state: PATIENT_STATE.ACTIVE,
           registeredAt: new Date('2026-10-14T00:00:00Z')
         },
@@ -282,7 +339,7 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
           _id: 'p3',
           jid: '6283@s.whatsapp.net',
           nama: 'Pasien Normal 2',
-          jamMinum: '07:00',
+          jamMinum: ['07:00'],
           state: PATIENT_STATE.ACTIVE,
           registeredAt: new Date('2026-10-14T00:00:00Z')
         }
@@ -305,13 +362,17 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
           sendFn: async () => {}
         });
 
+        // 3 pasien diproses semua (tidak ada yang dilewati)
         assert.equal(results.length, 3);
+        // Pasien 1 berhasil
         assert.equal(results[0].success, true);
-        assert.equal(results[0].action, 'sent');
-        assert.equal(results[1].success, false);
-        assert.match(results[1].error, /Database timeout/);
+        assert.equal(results[0].scheduleResults[0].action, 'sent');
+        // Pasien 2: error di level jadwal, tapi pasien tetap success (error diisolasi per jadwal)
+        assert.equal(results[1].success, true);
+        assert.ok(results[1].scheduleResults[0].error); // Error dicatat di scheduleResults
+        // Pasien 3 berhasil
         assert.equal(results[2].success, true);
-        assert.equal(results[2].action, 'sent');
+        assert.equal(results[2].scheduleResults[0].action, 'sent');
       } finally {
         ReminderLog.create = origCreate;
       }
@@ -669,5 +730,4 @@ describe('Daily Reminder Service (FR-10 s.d. FR-13)', () => {
     });
   });
 });
-
 

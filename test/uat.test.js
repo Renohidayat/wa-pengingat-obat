@@ -159,14 +159,14 @@ describe('UAT - User Acceptance Testing (PRD §13 & Issue #16)', () => {
       const patient = {
         _id: 'p1',
         nama: TEST_PATIENTS.P1.nama,
-        jamMinum: '07:00',
+        jamMinum: ['07:00'],
         state: PATIENT_STATE.ACTIVE,
         registeredAt: new Date('2026-10-16T08:00:00+07:00') // Daftar hari ini
       };
 
       // Waktu sekarang 07:00 WIB di hari yang sama
       const nowSameDay = new Date('2026-10-16T07:00:00+07:00');
-      const evalSameDay = evaluateReminder1Eligibility({ patient, now: nowSameDay });
+      const evalSameDay = evaluateReminder1Eligibility({ patient, jadwal: '07:00', now: nowSameDay });
 
       assert.equal(evalSameDay.eligible, false);
       assert.equal(evalSameDay.reason, 'SAME_DAY_REGISTRATION');
@@ -176,20 +176,20 @@ describe('UAT - User Acceptance Testing (PRD §13 & Issue #16)', () => {
       const patient = {
         _id: 'p1',
         nama: TEST_PATIENTS.P1.nama,
-        jamMinum: '07:00',
+        jamMinum: ['07:00'],
         state: PATIENT_STATE.ACTIVE,
         registeredAt: new Date('2026-10-15T08:00:00+07:00') // Terdaftar kemarin
       };
 
       // Tepat 07:00 WIB
       const nowExact = new Date('2026-10-16T07:00:00+07:00');
-      const evalExact = evaluateReminder1Eligibility({ patient, now: nowExact });
+      const evalExact = evaluateReminder1Eligibility({ patient, jadwal: '07:00', now: nowExact });
       assert.equal(evalExact.eligible, true);
       assert.equal(evalExact.diffMinutes, 0);
 
       // Selisih 1 menit (07:01 WIB)
       const now1Min = new Date('2026-10-16T07:01:00+07:00');
-      const eval1Min = evaluateReminder1Eligibility({ patient, now: now1Min });
+      const eval1Min = evaluateReminder1Eligibility({ patient, jadwal: '07:00', now: now1Min });
       assert.equal(eval1Min.eligible, true);
       assert.equal(eval1Min.diffMinutes, 1);
     });
@@ -223,10 +223,10 @@ describe('UAT - User Acceptance Testing (PRD §13 & Issue #16)', () => {
       };
 
       const origPatientFindOne = Patient.findOne;
-      const origLogFindOne = ReminderLog.findOne;
+      const origLogFind = ReminderLog.find;
 
       Patient.findOne = async () => patient;
-      ReminderLog.findOne = async () => log;
+      ReminderLog.find = async () => [log];
 
       const outMessages = [];
       const sendFn = async (to, text) => outMessages.push({ to, text });
@@ -243,7 +243,7 @@ describe('UAT - User Acceptance Testing (PRD §13 & Issue #16)', () => {
         assert.match(outMessages[0].text, /Kepatuhan Bapak\/Ibu hari ini sudah kami catat/);
       } finally {
         Patient.findOne = origPatientFindOne;
-        ReminderLog.findOne = origLogFindOne;
+        ReminderLog.find = origLogFind;
       }
     });
 
@@ -273,10 +273,10 @@ describe('UAT - User Acceptance Testing (PRD §13 & Issue #16)', () => {
       const sendFn = async (to, text) => outMessages.push({ to, text });
 
       const origPatientFindOne = Patient.findOne;
-      const origLogFindOne = ReminderLog.findOne;
+      const origLogFind = ReminderLog.find;
 
       Patient.findOne = async () => patient;
-      ReminderLog.findOne = async () => log;
+      ReminderLog.find = async () => [log];
 
       try {
         const res = await handleAdherenceConfirmation(patient.jid, 'SUDAH', {
@@ -289,7 +289,7 @@ describe('UAT - User Acceptance Testing (PRD §13 & Issue #16)', () => {
         assert.equal(log.status, REMINDER_STATUS.TERLAMBAT);
       } finally {
         Patient.findOne = origPatientFindOne;
-        ReminderLog.findOne = origLogFindOne;
+        ReminderLog.find = origLogFind;
       }
     });
 
@@ -324,7 +324,7 @@ describe('UAT - User Acceptance Testing (PRD §13 & Issue #16)', () => {
       const patient = {
         _id: 'p1',
         nama: TEST_PATIENTS.P1.nama,
-        jamMinum: '07:00',
+        jamMinum: ['07:00'],
         state: PATIENT_STATE.ACTIVE,
         registeredAt: new Date('2026-10-15T08:00:00+07:00')
       };
@@ -339,6 +339,7 @@ describe('UAT - User Acceptance Testing (PRD §13 & Issue #16)', () => {
       const nowAfterRestart = new Date('2026-10-16T07:10:00+07:00');
       const evalRestart = evaluateReminder1Eligibility({
         patient,
+        jadwal: '07:00',
         now: nowAfterRestart,
         todayLog: existingLog
       });
@@ -351,7 +352,7 @@ describe('UAT - User Acceptance Testing (PRD §13 & Issue #16)', () => {
       const patient = {
         _id: 'p2',
         nama: TEST_PATIENTS.P2.nama,
-        jamMinum: '07:00',
+        jamMinum: ['07:00'],
         state: PATIENT_STATE.ACTIVE,
         registeredAt: new Date('2026-10-15T08:00:00+07:00')
       };
@@ -360,6 +361,7 @@ describe('UAT - User Acceptance Testing (PRD §13 & Issue #16)', () => {
       const nowCatchup = new Date('2026-10-16T07:25:00+07:00');
       const evalCatchup = evaluateReminder1Eligibility({
         patient,
+        jadwal: '07:00',
         now: nowCatchup,
         todayLog: null
       });
@@ -373,7 +375,7 @@ describe('UAT - User Acceptance Testing (PRD §13 & Issue #16)', () => {
       const patient = {
         _id: 'p3',
         nama: TEST_PATIENTS.P3.nama,
-        jamMinum: '07:00',
+        jamMinum: ['07:00'],
         state: PATIENT_STATE.ACTIVE,
         registeredAt: new Date('2026-10-15T08:00:00+07:00')
       };
@@ -382,6 +384,7 @@ describe('UAT - User Acceptance Testing (PRD §13 & Issue #16)', () => {
       const nowTooLate = new Date('2026-10-16T08:30:00+07:00');
       const evalTooLate = evaluateReminder1Eligibility({
         patient,
+        jadwal: '07:00',
         now: nowTooLate,
         todayLog: null
       });

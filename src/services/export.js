@@ -92,7 +92,7 @@ export function buildPatientSummaryRows(patients = [], reminderLogs = []) {
       nama: patient.nama || '-',
       nomorWa: cleanPhone,
       state: patient.state || '-',
-      jamMinum: patient.jamMinum || '-',
+      jamMinum: Array.isArray(patient.jamMinum) ? patient.jamMinum.join(' & ') : (patient.jamMinum || '-'),
       registeredAt: regDateStr,
       totalJadwal,
       tepatWaktu,
