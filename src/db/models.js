@@ -1,9 +1,9 @@
 /**
- * Model Mongoose untuk Patient dan ReminderLog sesuai PRD §9.
+ * Model Mongoose untuk Patient, ReminderLog, dan EducationLog sesuai PRD §9.
  */
 
 import mongoose from 'mongoose';
-import { PATIENT_STATE, REMINDER_STATUS } from '../utils/constants.js';
+import { PATIENT_STATE, REMINDER_STATUS, EDUCATION_STATUS } from '../utils/constants.js';
 
 const patientSchema = new mongoose.Schema(
   {
@@ -36,6 +36,11 @@ const patientSchema = new mongoose.Schema(
     registeredAt: {
       type: Date,
       default: null
+    },
+    edukasiIndex: {
+      type: Number,
+      default: 0,
+      min: 0
     }
   },
   {
@@ -98,7 +103,48 @@ const reminderLogSchema = new mongoose.Schema(
 // Unique compound index pada patientId + tanggal + jadwal: mencegah duplikasi per jadwal per hari (FR-12)
 reminderLogSchema.index({ patientId: 1, tanggal: 1, jadwal: 1 }, { unique: true });
 
+const educationLogSchema = new mongoose.Schema(
+  {
+    patientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Patient',
+      required: true
+    },
+    tanggal: {
+      type: String, // Format YYYY-MM-DD (WIB)
+      required: true,
+      trim: true
+    },
+    materiKe: {
+      type: Number, // Nomor urut 1-based
+      required: true,
+      min: 1
+    },
+    judul: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    status: {
+      type: String,
+      enum: Object.values(EDUCATION_STATUS),
+      required: true
+    },
+    sentAt: {
+      type: Date,
+      default: null
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+// Unique compound index pada patientId + tanggal: satu edukasi per pasien per hari (FR-53)
+educationLogSchema.index({ patientId: 1, tanggal: 1 }, { unique: true });
+
 export const Patient = mongoose.models.Patient || mongoose.model('Patient', patientSchema);
 export const ReminderLog = mongoose.models.ReminderLog || mongoose.model('ReminderLog', reminderLogSchema);
+export const EducationLog = mongoose.models.EducationLog || mongoose.model('EducationLog', educationLogSchema);
 
-export { patientSchema, reminderLogSchema };
+export { patientSchema, reminderLogSchema, educationLogSchema };
