@@ -1,5 +1,5 @@
 /**
- * Konstanta status pasien, log kepatuhan, dan log edukasi sesuai PRD §6.3 dan §9.
+ * Konstanta status pasien dan log kepatuhan sesuai PRD §6.3 dan §9.
  */
 
 export const PATIENT_STATE = Object.freeze({
@@ -14,10 +14,5 @@ export const REMINDER_STATUS = Object.freeze({
   TEPAT_WAKTU: 'Tepat Waktu',
   TERLAMBAT: 'Terlambat',
   TIDAK_KONFIRMASI: 'Tidak Konfirmasi',
-  TERLEWAT_SISTEM: 'Terlewat Sistem'
-});
-
-export const EDUCATION_STATUS = Object.freeze({
-  TERKIRIM: 'Terkirim',
   TERLEWAT_SISTEM: 'Terlewat Sistem'
 });
