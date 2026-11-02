@@ -11,8 +11,11 @@ import makeWASocket, {
 import qrcode from 'qrcode-terminal';
 import { logger } from '../utils/logger.js';
 import { getConfig } from '../config.js';
+import { updateQr, updateStatus } from './qr-server.js';
 
 let sock = null;
+let reconnectAttempt = 0;
+const MAX_RECONNECT_DELAY_MS = 60_000;
 
 /**
  * Menghitung jeda acak antara minMs dan maxMs (default 1500–4000 ms sesuai FR-20).
@@ -119,9 +122,11 @@ export async function createBot(customOptions = {}) {
     if (qr) {
       logger.info('Silakan scan QR code berikut untuk menghubungkan WhatsApp:');
       qrcode.generate(qr, { small: true });
+      await updateQr(qr);
     }
 
     if (connection === 'close') {
+      updateStatus('close');
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
@@ -131,13 +136,17 @@ export async function createBot(customOptions = {}) {
       );
 
       if (shouldReconnect) {
-        logger.info('Mencoba menghubungkan kembali ke WhatsApp...');
-        createBot(customOptions);
+        reconnectAttempt++;
+        const backoffMs = Math.min(5000 * Math.pow(2, reconnectAttempt - 1), MAX_RECONNECT_DELAY_MS);
+        logger.info({ delayMs: backoffMs, attempt: reconnectAttempt }, `Reconnect dalam ${backoffMs / 1000}s...`);
+        setTimeout(() => createBot(customOptions), backoffMs);
       } else {
         logger.error('WhatsApp logout secara eksplisit. Hapus auth_info/ dan scan ulang.');
       }
     } else if (connection === 'open') {
+      reconnectAttempt = 0;
       logger.info('Koneksi WhatsApp berhasil tersambung!');
+      updateStatus('open', sock.user);
     }
   });
 

@@ -9,6 +9,7 @@ import { connectDb, disconnectDb } from './db/connection.js';
 import { createBot, disconnectWhatsApp } from './bot/client.js';
 import { setupMessageHandlers } from './bot/handlers.js';
 import { startScheduler, stopScheduler } from './scheduler/index.js';
+import { startQrServer, stopQrServer } from './bot/qr-server.js';
 import { logger } from './utils/logger.js';
 
 let isShuttingDown = false;
@@ -39,7 +40,10 @@ export async function gracefulShutdown(signal = 'SIGTERM', options = {}) {
     // 2. Tutup koneksi socket WhatsApp
     await disconnectWhatsAppFn();
 
-    // 3. Putuskan koneksi database MongoDB
+    // 3. Tutup Live QR Web Server
+    await stopQrServer();
+
+    // 4. Putuskan koneksi database MongoDB
     await disconnectDbFn();
 
     logger.info('Semua layanan dan koneksi telah ditutup dengan aman.');
@@ -119,8 +123,15 @@ export async function bootstrap(options = {}) {
     setupShutdownHandlers();
   }
 
+  // 6. Jalankan Live QR Web Server (default port: QR_PORT || PORT || SERVER_PORT || 3000)
+  let qrServer = null;
+  if (!options.skipQrServer) {
+    const port = options.qrPort || process.env.QR_PORT || process.env.PORT || process.env.SERVER_PORT || 3000;
+    qrServer = startQrServer(port);
+  }
+
   logger.info('Aplikasi WhatsApp Bot Pengingat Minum Obat siap dan berjalan');
-  return { sock, schedulerTask };
+  return { sock, schedulerTask, qrServer };
 }
 
 
