@@ -83,6 +83,7 @@ describe('Hardening & Graceful Shutdown (Issue #15)', () => {
         },
         sock: mockSock,
         skipSignals: true,
+        skipQrServer: true,
         sendFn: async () => {}
       });
 
