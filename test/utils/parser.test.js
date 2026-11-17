@@ -63,6 +63,23 @@ describe('Registration Parser (FR-03 & FR-04)', () => {
       assert.equal(isConfirmationTrigger('SUDAH.'), true);
     });
 
+    it('toleran terhadap emoji, simbol tanda baca, dan format markdown (Issue #60)', () => {
+      assert.equal(isConfirmationTrigger('Sudah 🙏'), true);
+      assert.equal(isConfirmationTrigger('Sudah 👍'), true);
+      assert.equal(isConfirmationTrigger('Sudah 🙏🏻'), true);
+      assert.equal(isConfirmationTrigger('SDH 👍'), true);
+      assert.equal(isConfirmationTrigger('sudah minum 🙏'), true);
+      assert.equal(isConfirmationTrigger('UDAH 😊'), true);
+      assert.equal(isConfirmationTrigger('*SUDAH*'), true);
+      assert.equal(isConfirmationTrigger('_sudah_'), true);
+      assert.equal(isConfirmationTrigger('~sudah~'), true);
+      assert.equal(isConfirmationTrigger('sudah!!'), true);
+      assert.equal(isConfirmationTrigger('sudah...'), true);
+      assert.equal(isConfirmationTrigger('sudah, '), true);
+      assert.equal(isConfirmationTrigger('Sudah! 🙏'), true);
+      assert.equal(isConfirmationTrigger('*Sudah* 👍'), true);
+    });
+
     it('menolak pesan yang bukan varian konfirmasi', () => {
       assert.equal(isConfirmationTrigger('BELUM'), false);
       assert.equal(isConfirmationTrigger('DAFTAR'), false);

@@ -170,6 +170,43 @@ describe('Adherence Confirmation & Status (FR-14 s.d. FR-16, FR-19)', () => {
       assert.match(sent[0].text, /Kepatuhan Bapak\/Ibu hari ini sudah kami catat/);
     });
 
+    it('berhasil mencatat konfirmasi saat pasien membalas dengan emoji dan tanda baca (Issue #60)', async () => {
+      const now = new Date('2026-10-15T00:15:00Z');
+      Patient.findOne = async () => ({
+        _id: 'p1',
+        nama: 'Sukanti',
+        state: PATIENT_STATE.ACTIVE
+      });
+
+      let saveCalled = false;
+      const mockLog = {
+        _id: 'log-1',
+        jadwal: '07:00',
+        status: REMINDER_STATUS.MENUNGGU,
+        reminder2At: null,
+        confirmedAt: null,
+        save: async () => {
+          saveCalled = true;
+        }
+      };
+      ReminderLog.find = async () => [mockLog];
+
+      const sent = [];
+      const res = await handleAdherenceConfirmation('6281@s.whatsapp.net', 'Sudah 🙏', {
+        now,
+        sendFn: async (jid, text) => sent.push({ jid, text })
+      });
+
+      assert.equal(res.handled, true);
+      assert.equal(res.action, 'confirmed');
+      assert.equal(res.status, REMINDER_STATUS.TEPAT_WAKTU);
+      assert.equal(mockLog.status, REMINDER_STATUS.TEPAT_WAKTU);
+      assert.equal(mockLog.confirmedAt, now);
+      assert.equal(saveCalled, true);
+      assert.equal(sent.length, 1);
+      assert.match(sent[0].text, /Kepatuhan Bapak\/Ibu hari ini sudah kami catat/);
+    });
+
     it('konfirmasi ganda di hari yang sama TIDAK mengubah log (FR-16)', async () => {
       const originalConfirmedAt = new Date('2026-10-15T00:15:00Z');
       const secondConfirmationNow = new Date('2026-10-15T01:00:00Z');
