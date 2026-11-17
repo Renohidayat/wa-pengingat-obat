@@ -48,7 +48,7 @@ export const CONFIRMATION_VARIANTS = Object.freeze([
 
 /**
  * Mengecek apakah pesan merupakan konfirmasi minum obat (FR-14: SUDAH, SUDAH MINUM, SDH, UDAH).
- * Case-insensitive dan toleran terhadap spasi / tanda baca akhir (. atau !).
+ * Case-insensitive dan toleran terhadap emoji, simbol tanda baca, spasi, serta format markdown (Issue #60).
  * @param {string} text
  * @returns {boolean}
  */
@@ -57,7 +57,13 @@ export function isConfirmationTrigger(text) {
     return false;
   }
 
-  const cleaned = text.trim().toUpperCase().replace(/[.!]+$/, '').trim();
+  // Hapus semua karakter non-huruf dan non-angka (termasuk emoji, tanda baca, simbol markdown)
+  const cleaned = text
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+
   return CONFIRMATION_VARIANTS.includes(cleaned);
 }
 
